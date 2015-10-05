@@ -20,12 +20,12 @@ through procfs from corresponding locations: /proc/diskstats,
 /proc/vmstats, /proc/buddyinfo, and /proc/zoneinfo.
 
 Installation
-----------
+------------
 
 Installation process is tested on Red Hat Enterprise Linux Server
 release 6.5. It will need to be adapted for other variants of Linux.
 
-1. Base collectd installation with python:
+##Step 1. Base collectd installation with python:
 
 Base collect is available from:
 https://collectd.org/download.shtml
@@ -46,7 +46,7 @@ yum --nogpgcheck -y install collectd libcollectdclient collectd-python
 Verify the installation by running 'sudo rpm -qa | grep collectd',
 which should show above three packages installed.
 
-2. Installation of telemetry plugins:
+##Step 2. Installation of telemetry plugins:
 
 Run the install script:
 
@@ -55,19 +55,22 @@ sudo ./install.sh
 This install script assumes that base collectd installation through
 yum results in:
 
-a. /etc/collectd.conf
-b. /etc/collectd.d (for plugin in conf files)
-c. /usr/share/collectd/types.db
-d. /usr/share/collectd/plugins/python (for python plugins)
+1. /etc/collectd.conf
+2. /etc/collectd.d (for plugin in conf files)
+3. /usr/share/collectd/types.db
+4. /usr/share/collectd/plugins/python (for python plugins)
 
 Depending on the RPM packaging, it is not guaranteed that above will
 be true in all cases. In that case, either base installation or
 telemetry plugin installation script will require adjustments.
 
 
-3. Start/restart collectd:
+##Step 3. Start/restart collectd:
 
 service collectd start (or restart if already running)
+
+Testing
+-------
 
 In order to test the measurements that these plugins gather, enable
 CSV plugin from collectd.conf to print the values in text files. You
