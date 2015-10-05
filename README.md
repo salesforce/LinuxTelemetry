@@ -25,11 +25,13 @@ Installation
 Installation process is tested on Red Hat Enterprise Linux Server
 release 6.5. It will need to be adapted for other variants of Linux.
 
-##Step 1. Base collectd installation with python:
+###Step 1. Base collectd installation with python:
 
-Base collect is available from:
+Base collectd is available from:
+
 https://collectd.org/download.shtml
-Current version is 5. There are multiple ways to install including building from source. For
+
+Current collectd version is 5. There are multiple ways to install including building from source. For
 many cloud environments, RPM installation will be relevant. Three RPM
 packages are needed for all of the above python plugins to work:
 
@@ -41,19 +43,22 @@ packages are needed for all of the above python plugins to work:
 Ensure that your yum repo has above three RPMs, which should be
 installed by:
 
-yum --nogpgcheck -y install collectd libcollectdclient collectd-python
+`yum --nogpgcheck -y install collectd libcollectdclient collectd-python`
 
-Verify the installation by running 'sudo rpm -qa | grep collectd',
-which should show above three packages installed.
+Verify the installation by running 
 
-##Step 2. Installation of telemetry plugins:
+`sudo rpm -qa | grep collectd`,
+
+which should show that above three packages are installed.
+
+###Step 2. Installation of telemetry plugins:
 
 Run the install script:
 
-sudo ./install.sh
+`sudo ./install.sh`
 
 This install script assumes that base collectd installation through
-yum results in:
+yum resulted in:
 
 1. /etc/collectd.conf
 2. /etc/collectd.d (for plugin in conf files)
@@ -61,13 +66,13 @@ yum results in:
 4. /usr/share/collectd/plugins/python (for python plugins)
 
 Depending on the RPM packaging, it is not guaranteed that above will
-be true in all cases. In that case, either base installation or
+be true in all cases. In those cases, either base installation or
 telemetry plugin installation script will require adjustments.
 
 
-##Step 3. Start/restart collectd:
+###Step 3. Start/restart collectd:
 
-service collectd start (or restart if already running)
+`service collectd start` (or `restart` if already running)
 
 Testing
 -------
