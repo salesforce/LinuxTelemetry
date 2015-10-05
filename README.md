@@ -33,9 +33,9 @@ Current version is 5. There are multiple ways to install including building from
 many cloud environments, RPM installation will be relevant. Three RPM
 packages are needed for all of the above python plugins to work:
 
-collectd-5.4.0-105.el6.x86_64
-libcollectdclient-5.4.0-105.el6.x86_64
-collectd-python-5.4.0-105.el6.x86_64
+1. collectd-5.4.0-105.el6.x86_64
+2. libcollectdclient-5.4.0-105.el6.x86_64
+3. collectd-python-5.4.0-105.el6.x86_64
 
 
 Ensure that your yum repo has above three RPMs, which should be
