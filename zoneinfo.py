@@ -92,6 +92,9 @@ re_zoneinfo=re.compile(r'^\s*Node\s+(?P<node>\d+)'
                        r'^\s+nr_writeback\s+(?P<nr_writeback>\d+)'
                        r'(?:\n|\r\n?)'
                        r'(^(.+)\n)+?'
+                       r'^\s+nr_vmscan_write\s+(?P<nr_vmscan_write>\d+)'
+                       r'(?:\n|\r\n?)'
+                       r'(^(.+)\n)+?'
                        r'^\s+nr_anon_transparent_hugepages\s+(?P<nr_anon_transparent_hugepages>\d+)'
                        , re.MULTILINE)
 

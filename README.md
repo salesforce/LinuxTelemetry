@@ -32,7 +32,7 @@ Base collectd is available from:
 https://collectd.org/download.shtml
 
 Current collectd version is 5. There are multiple ways to install including building from source. For
-many cloud environments, RPM installation will be relevant. Three RPM
+many cloud environments that use Red Hat Enterprise Linux (RHEL), RPM installation will be relevant. Three RPM
 packages are needed for all of the above python plugins to work:
 
 1. collectd-5.4.0-105.el6.x86_64
@@ -50,6 +50,21 @@ Verify the installation by running
 `sudo rpm -qa | grep collectd`,
 
 which should show that above three packages are installed.
+
+For non-RHEL environments, it is possible to install base collectd directly from source (install any dependencies along the way):
+
+`git clone https://github.com/collectd/collectd.git`
+`cd collectd`
+`./build.sh`
+`./configure --prefix=/usr --sysconfig=/etc --libdir=/usr/lib --mandir=/usr/share/man --enable-python`
+`make`
+`sudo make install`
+
+Edit collectd configuration file in /etc/collectd.conf to allow it to use external plugin configurations by adding following lines to it:
+
+<Include "/etc/collectd.d">
+	Filter "*.conf"
+</Include>
 
 ###Step 2. Installation of telemetry plugins:
 
@@ -73,6 +88,11 @@ telemetry plugin installation script will require adjustments.
 ###Step 3. Start/restart collectd:
 
 `service collectd start` (or `restart` if already running)
+
+In case of installation from source:
+
+`sudo collectd -C /etc/collectd.conf`
+
 
 Testing
 -------
