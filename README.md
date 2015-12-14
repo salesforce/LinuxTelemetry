@@ -131,6 +131,7 @@ This plug-in reads /proc/diskstats and collects stats for devices, such as sda, 
 
 ###Fusion-IO
 This  plugin is specifically developed for fusion-io flash device measurement. It currently measures:
+
 1. physical blocks read
 2. physical blocks written
 3. total blocks
@@ -143,15 +144,15 @@ These metrics are extracted from fusion-io command-line utilities: fio-status an
 ###Vmstats
 This plugin is based on /proc/vmstat raw metrics. In addition to raw metrics, a few metric are derived, which are available through tools such as 'sar' and 'atop':
 
--- pgpgin/s
--- pgpgout/s
--- fault/s
--- majflt/s
--- pgfree/s
--- pgscank/s
--- pgscand/s
--- pgsteal/s
--- %vmeff
+- pgpgin/s
+- pgpgout/s
+- fault/s
+- majflt/s
+- pgfree/s
+- pgscank/s
+- pgscand/s
+- pgsteal/s
+- %vmeff
 
 ###Buddyinfo
 Linux uses buddy allocator for memory management. This plugin is based on number of free pages from /proc/buddyinfo. These free pages statistics are available in terms of NUMA node, allocation zones (such as Normal, DMA, etc.), and order of page sizes: 4K, 8K, 16K, 32K, 64K, 128K, 256K, 512K, 1024K, and 2048K. These statistics are useful for getting a handle on memory pressure, fragmentation, and virtual memory system in-efficiences, and JVM/GC pauses.
