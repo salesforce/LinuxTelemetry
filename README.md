@@ -45,26 +45,30 @@ installed by:
 
 `yum --nogpgcheck -y install collectd libcollectdclient collectd-python`
 
-Verify the installation by running 
+Verify the installation by running
 
 `sudo rpm -qa | grep collectd`,
 
 which should show that above three packages are installed.
 
-For non-RHEL environments, it is possible to install base collectd directly from source (install any dependencies along the way):
+For non-RHEL environments or where RPM packages are not available, it is possible to install base collectd directly from source (install any dependencies, such as libtool-ltdl-devel and possibly others depending on system setup, along the way):
 
-`git clone https://github.com/collectd/collectd.git`
-`cd collectd`
-`./build.sh`
-`./configure --prefix=/usr --sysconfig=/etc --libdir=/usr/lib --mandir=/usr/share/man --enable-python`
-`make`
-`sudo make install`
+```
+git clone https://github.com/collectd/collectd.git
+cd collectd
+./build.sh
+./configure --prefix=/usr --sysconfdir=/etc --libdir=/usr/lib --mandir=/usr/share/man --enable-python
+make
+sudo make install
+```
 
 Edit collectd configuration file in /etc/collectd.conf to allow it to use external plugin configurations by adding following lines to it:
 
+```
 <Include "/etc/collectd.d">
 	Filter "*.conf"
 </Include>
+```
 
 ###Step 2. Installation of telemetry plugins:
 
@@ -89,7 +93,7 @@ telemetry plugin installation script will require adjustments.
 
 `service collectd start` (or `restart` if already running)
 
-In case of installation from source:
+In case of manual installation from source:
 
 `sudo collectd -C /etc/collectd.conf`
 
@@ -101,7 +105,56 @@ In order to test the measurements that these plugins gather, enable
 CSV plugin from collectd.conf to print the values in text files. You
 can choose any one of several available collectd supported tools to forward the
 measurements from target hosts to an aggregation point in a cloud
-environment for continuous remote monitoring.
+environment for continuous remote monitoring. For instance, Graphite/Carbon can be used for forwarding and visualization of collectd metrics. Collectd comes with wrie_graphite plugin, which can be enabled in collectd.conf to forward metrics to host(s) running Graphite/Carbon as follows:
 
-Plugin specific information is available in plugins .py files.
+```
+LoadPlugin write_graphite
+<Plugin write_graphite>
+  <Node "example">
+    Host "awaheed-wks"
+    Port "2003"
+    Protocol "tcp"
+    LogSendErrors true
+    Prefix "collectd"
+    Postfix "collectd"
+    StoreRates true
+    AlwaysAppendDS false
+    EscapeCharacter "_"
+  </Node>
+</Plugin>
+```
 
+Plugins
+-------
+###Diskstats
+This plug-in reads /proc/diskstats and collects stats for devices, such as sda, sdb, ..., fio, md0, md1, md2, md3, etc. In addition to collecting raw stats, plugin can derive metrics such as, iops, device utilization, bytes read/write volumes, queue sizes, service times, etc. at next collection interval.
+
+###Fusion-IO
+This  plugin is specifically developed for fusion-io flash device measurement. It currently measures:
+1. physical blocks read
+2. physical blocks written
+3. total blocks
+4. min block erases count
+5. max block erases count
+6. average block erases count
+
+These metrics are extracted from fusion-io command-line utilities: fio-status and fio-get-erase-count.
+
+###Vmstats
+This plugin is based on /proc/vmstat raw metrics. In addition to raw metrics, a few metric are derived, which are available through tools such as 'sar' and 'atop':
+
+-- pgpgin/s
+-- pgpgout/s
+-- fault/s
+-- majflt/s
+-- pgfree/s
+-- pgscank/s
+-- pgscand/s
+-- pgsteal/s
+-- %vmeff
+
+###Buddyinfo
+Linux uses buddy allocator for memory management. This plugin is based on number of free pages from /proc/buddyinfo. These free pages statistics are available in terms of NUMA node, allocation zones (such as Normal, DMA, etc.), and order of page sizes: 4K, 8K, 16K, 32K, 64K, 128K, 256K, 512K, 1024K, and 2048K. These statistics are useful for getting a handle on memory pressure, fragmentation, and virtual memory system in-efficiences, and JVM/GC pauses.
+
+###Zoneinfo
+This plugin extracts metrics freom /proc/zoneinfo, which essentially breaks down virtual memory stats with respect to each NUMA node and memory zone. It supplements the measurements provided by vmstta and buddyinfo plugins with respect to zones.
