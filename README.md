@@ -14,6 +14,7 @@ Following plugins are being provided:
 3. Vmstats
 4. Buddyinfo
 5. Zoneinfo
+6. Netstats
 
 Except for fusion-io plugin, all others gather system level metrics
 through procfs from corresponding locations: /proc/diskstats,
@@ -159,3 +160,6 @@ Linux uses buddy allocator for memory management. This plugin is based on number
 
 ###Zoneinfo
 This plugin extracts metrics freom /proc/zoneinfo, which essentially breaks down virtual memory stats with respect to each NUMA node and memory zone. It supplements the measurements provided by vmstta and buddyinfo plugins with respect to zones.
+
+###Netstats
+Linux maintains network protocol specific counters under /proc/net/snmp and /proc/net/netstat. Protocols include IP, ICMP, TCP, UDP, and their extensions. This plugin exposes those counters, which are typically available through 'netstat -s' command for net-tools implementation of netstat. 
