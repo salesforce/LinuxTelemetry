@@ -1,0 +1,316 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>vmstats Module &mdash; LinuxTelemetry 1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="LinuxTelemetry 1 documentation" href="index.html" />
+    <link rel="next" title="zoneinfo Module" href="zoneinfo.html" />
+    <link rel="prev" title="netstats Module" href="netstats.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="zoneinfo.html" title="zoneinfo Module"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="netstats.html" title="netstats Module"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">LinuxTelemetry 1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-vmstats">
+<span id="vmstats-module"></span><h1>vmstats Module<a class="headerlink" href="#module-vmstats" title="Permalink to this headline">¶</a></h1>
+<p><strong>vmstats.py</strong></p>
+<blockquote>
+<div><p>Some of the metrics that we are intrested in are those
+in the output of &#8216;sar -B&#8217; that reports  paging statistics. 
+Some of the metrics below are available only with post 2.5+
+kernels. The following values are available:</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>pgpgin/s</dt>
+<dd>Total number of kilobytes the system paged in from
+disk  per  second.   Note: With  old kernels (2.2.x)
+this value is a number of blocks per second (and not
+kilobytes).</dd>
+<dt>pgpgout/s</dt>
+<dd>Total number of kilobytes the system paged out to 
+disk per second.  Note: With old kernels (2.2.x) this 
+value is a number of blocks per second (and not kilo-
+bytes).</dd>
+<dt>fault/s</dt>
+<dd>Number of page faults (major + minor) made by the system 
+per second.  This  is not  a count of page faults that 
+generate I/O, because some page faults can be resolved 
+without I/O.</dd>
+<dt>majflt/s</dt>
+<dd>Number of major faults the system  has  made  per  second, 
+those  which  have required loading a memory page from disk.</dd>
+<dt>pgfree/s</dt>
+<dd>Number of pages placed on the free list by the system per second.</dd>
+<dt>pgscank/s</dt>
+<dd>Number of pages scanned by the kswapd daemon per second.
+Kernel theread kswapd provides asynchronous page reclamation
+and runs only when free pages in a zone runs low.</dd>
+<dt>pgscand/s</dt>
+<dd>Number of pages scanned directly per second.
+Direct reclaimation occurrs periodically.</dd>
+<dt>pgsteal/s</dt>
+<dd>Number  of pages the system has reclaimed from cache (pagecache
+and swapcache) per second to satisfy its memory demands.</dd>
+<dt>%vmeff</dt>
+<dd>Calculated as pgsteal / pgscan, this is a metric of  the  
+efficiency  of  page reclaim.  If it is near 100% then almost 
+every page coming off the tail of the inactive list is being 
+reaped. If it gets too low (e.g. less  than  30%)  then the 
+virtual memory is having some difficulty.  This field is displayed 
+as zero if no pages have been scanned during the interval of time.</dd>
+</dl>
+</div></blockquote>
+<p>This plugin is based on /proc/vmstat output (varies from system to
+to system), which consists of following fields:</p>
+<ol class="arabic simple">
+<li>nr_free_pages 7057051</li>
+<li>nr_inactive_anon 86</li>
+<li>nr_active_anon 12702</li>
+<li>nr_inactive_file 2210411</li>
+<li>nr_active_file 2323658</li>
+<li>nr_unevictable 8</li>
+<li>nr_mlock 8</li>
+<li>nr_anon_pages 12116</li>
+<li>nr_mapped 5168</li>
+<li>nr_file_pages 4534236</li>
+<li>nr_dirty 36</li>
+<li>nr_writeback 0</li>
+<li>nr_slab_reclaimable 359519</li>
+<li>nr_slab_unreclaimable 268554</li>
+<li>nr_page_table_pages 3700</li>
+<li>nr_kernel_stack 522</li>
+<li>nr_unstable 0</li>
+<li>nr_bounce 0</li>
+<li>nr_vmscan_write 0</li>
+<li>nr_writeback_temp 0</li>
+<li>nr_isolated_anon 0</li>
+<li>nr_isolated_file 0</li>
+<li>nr_shmem 168</li>
+<li>numa_hit 7521020255</li>
+<li>numa_miss 1400949106</li>
+<li>numa_foreign 1400949106</li>
+<li>numa_interleave 38352</li>
+<li>numa_local 7520997143</li>
+<li>numa_other 1400972218</li>
+<li>nr_anon_transparent_hugepages 1</li>
+<li>pgpgin 203525573</li>
+<li>pgpgout 619347783</li>
+<li>pswpin 0</li>
+<li>pswpout 0</li>
+<li>pgalloc_dma 1</li>
+<li>pgalloc_dma32 716304477</li>
+<li>pgalloc_normal 8207012876</li>
+<li>pgalloc_movable 0</li>
+<li>pgfree 8930377568</li>
+<li>pgactivate 8496932</li>
+<li>pgdeactivate 0</li>
+<li>pgfault 418769943</li>
+<li>pgmajfault 2090</li>
+<li>pgrefill_dma 0</li>
+<li>pgrefill_dma32 0</li>
+<li>pgrefill_normal 0</li>
+<li>pgrefill_movable 0</li>
+<li>pgsteal_dma 0</li>
+<li>pgsteal_dma32 0</li>
+<li>pgsteal_normal 0</li>
+<li>pgsteal_movable 0</li>
+<li>pgscan_kswapd_dma 0</li>
+<li>pgscan_kswapd_dma32 0</li>
+<li>pgscan_kswapd_normal 0</li>
+<li>pgscan_kswapd_movable 0</li>
+<li>pgscan_direct_dma 0</li>
+<li>pgscan_direct_dma32 0</li>
+<li>pgscan_direct_normal 0</li>
+<li>pgscan_direct_movable 0</li>
+<li>zone_reclaim_failed 0</li>
+<li>pginodesteal 0</li>
+<li>slabs_scanned 0</li>
+<li>kswapd_steal 0</li>
+<li>kswapd_inodesteal 0</li>
+<li>kswapd_low_wmark_hit_quickly 0</li>
+<li>kswapd_high_wmark_hit_quickly 0</li>
+<li>kswapd_skip_congestion_wait 0</li>
+<li>pageoutrun 0</li>
+<li>allocstall 0</li>
+<li>pgrotated 0</li>
+<li>compact_blocks_moved 0</li>
+<li>compact_pages_moved 0</li>
+<li>compact_pagemigrate_failed 0</li>
+<li>compact_stall 0</li>
+<li>compact_fail 0</li>
+<li>compact_success 0</li>
+<li>htlb_buddy_alloc_success 0</li>
+<li>htlb_buddy_alloc_fail 0</li>
+<li>unevictable_pgs_culled 14239</li>
+<li>unevictable_pgs_scanned 0</li>
+<li>unevictable_pgs_rescued 60163177</li>
+<li>unevictable_pgs_mlocked 60164843</li>
+<li>unevictable_pgs_munlocked 60164803</li>
+<li>unevictable_pgs_cleared 32</li>
+<li>unevictable_pgs_stranded 0</li>
+<li>unevictable_pgs_mlockfreed 0</li>
+</ol>
+</div></blockquote>
+<dl class="function">
+<dt id="vmstats.calc_vmstats">
+<tt class="descclassname">vmstats.</tt><tt class="descname">calc_vmstats</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/vmstats.html#calc_vmstats"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#vmstats.calc_vmstats" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="vmstats.calc_vmstats_rate">
+<tt class="descclassname">vmstats.</tt><tt class="descname">calc_vmstats_rate</tt><big>(</big><em>m</em><big>)</big><a class="reference internal" href="_modules/vmstats.html#calc_vmstats_rate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#vmstats.calc_vmstats_rate" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="vmstats.collect_vmstats">
+<tt class="descclassname">vmstats.</tt><tt class="descname">collect_vmstats</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/vmstats.html#collect_vmstats"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#vmstats.collect_vmstats" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="vmstats.configer">
+<tt class="descclassname">vmstats.</tt><tt class="descname">configer</tt><big>(</big><em>ObjConfiguration</em><big>)</big><a class="reference internal" href="_modules/vmstats.html#configer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#vmstats.configer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="vmstats.dispatch_metrics">
+<tt class="descclassname">vmstats.</tt><tt class="descname">dispatch_metrics</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/vmstats.html#dispatch_metrics"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#vmstats.dispatch_metrics" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="vmstats.get_host_type">
+<tt class="descclassname">vmstats.</tt><tt class="descname">get_host_type</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/vmstats.html#get_host_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#vmstats.get_host_type" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="vmstats.init_stats_cache">
+<tt class="descclassname">vmstats.</tt><tt class="descname">init_stats_cache</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/vmstats.html#init_stats_cache"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#vmstats.init_stats_cache" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="vmstats.initer">
+<tt class="descclassname">vmstats.</tt><tt class="descname">initer</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/vmstats.html#initer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#vmstats.initer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="vmstats.reader">
+<tt class="descclassname">vmstats.</tt><tt class="descname">reader</tt><big>(</big><em>input_data=None</em><big>)</big><a class="reference internal" href="_modules/vmstats.html#reader"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#vmstats.reader" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="vmstats.shutdown">
+<tt class="descclassname">vmstats.</tt><tt class="descname">shutdown</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/vmstats.html#shutdown"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#vmstats.shutdown" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="vmstats.swap_current_cache">
+<tt class="descclassname">vmstats.</tt><tt class="descname">swap_current_cache</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/vmstats.html#swap_current_cache"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#vmstats.swap_current_cache" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="vmstats.writer">
+<tt class="descclassname">vmstats.</tt><tt class="descname">writer</tt><big>(</big><em>metric</em>, <em>data=None</em><big>)</big><a class="reference internal" href="_modules/vmstats.html#writer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#vmstats.writer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="netstats.html"
+                        title="previous chapter">netstats Module</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="zoneinfo.html"
+                        title="next chapter">zoneinfo Module</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/vmstats.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="zoneinfo.html" title="zoneinfo Module"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="netstats.html" title="netstats Module"
+             >previous</a> |</li>
+        <li><a href="index.html">LinuxTelemetry 1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2016, Abdul Waheed.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

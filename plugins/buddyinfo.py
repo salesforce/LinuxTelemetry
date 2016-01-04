@@ -1,8 +1,6 @@
 #!/usr/bin/python
 
-##########################################################
-# buddyinfo.py 
-#
+##########################################################################
 # Copyright (c) 2015, Salesforce.com, Inc.
 # All rights reserved.
 #
@@ -30,39 +28,36 @@
 # IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 # EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
-##########################################################
+##########################################################################
 
-##########################################################
-# Plugin description:
-#
-# Linux uses buddy allocator for memory management. Pages
-# are allocated in each NUMA node and zones within each
-# node. Within each zone, pages are allocated as 
-# contiguous groups of 1, 2, 3, 4, and so on order memory
-# chunck where 1 means 4K chunks. Number of free pages in
-# each bucket is exposed through /proc/buddyinfo
-# When this number goes below a threshold in any bucket,
-# kswapd (slowpath for finding free pages) kicks in. It
-# then scans for free pages in all order levels until
-# all of them reach above min limit. This process can take
-# long time and may cause issues for GC latencies. 
-#
-# Typical contents of /proc/buddyinfo:
-#
-# Node 0, zone   Normal   1490   4026  12224   8508   4493   1929    849    301    101     45   5257 
-# Node 1, zone      DMA      1      1      1      1      1      0      1      0      1      1      3 
-# Node 1, zone    DMA32     15      3      2      5      8      7      4      4      7      8    681 
-# Node 1, zone   Normal   6061  13681  20887  15188   9097   4546   1948    731    273    125   3976 
-#
-# Here are the fields interpretation in each row:
-# #1        NUMA node
-# #2        Zone name
-# #3 - end  Page order or buckets on page sizes: 
-#                4K, 8K, 16K, 32K, 64K, 128K, 256K, 512K, 1024K, and 2048K
-#
-# 
-##########################################################
+"""
+**buddyinfo.py**
+
+Linux uses buddy allocator for memory management. Pages
+are allocated in each NUMA node and zones within each
+node. Within each zones, pages are allocated as
+contiguous groups of 1, 2, 3, 4, and so on order
+pages where 1 means 4K pages. Number of free pages in
+each bucket is exposed through /proc/buddyinfo
+When this number goes below a threshold in any bucket,
+kswapd (slowpath for finding free pages) kicks in. It
+then scans for free pages in all order levels until
+all of them reach above min limit. This process can take
+long time and may cause issues for GC latencies.
+
+Typical contents of /proc/buddyinfo:
+
+- Node 0, zone   Normal   1490   4026  12224   8508   4493   1929    849    301    101     45   5257
+- Node 1, zone      DMA      1      1      1      1      1      0      1      0      1      1      3
+- Node 1, zone    DMA32     15      3      2      5      8      7      4      4      7      8    681
+- Node 1, zone   Normal   6061  13681  20887  15188   9097   4546   1948    731    273    125   3976
+
+Here are the fields interpretation in each row:
+1. NUMA node (such as 0 or 1)
+2. Zone name (Normal, DMA32, DMA, etc.)
+3. Col. 3 to end: page order or buckets on contiguous memory sizes: 4K, 8K, 16K, 32K, 64K, 128K, 256K, 512K, 1024K, and 2048K
+
+"""
 
 import collectd
 import platform
@@ -76,8 +71,11 @@ host_name = socket.gethostbyaddr(socket.gethostname())[0]
 host_types = ['app', 'db', 'ffx', 'indexer', 'search', 'other']
 host_type = 'other'
 
-buddy_fname = '/proc/buddyinfo'
-buddy_fields = ['numa_node', 
+BUDDY_FNAME = '/proc/buddyinfo'
+METRIC_PLUGIN = 'buddyinfo'
+METRIC_TYPE = 'gauge'
+
+buddy_fields = ['numa_node',
                  'zone_name',
                  'bucket_free_pages'
                 ]
@@ -104,9 +102,9 @@ def get_host_type():
 def init_stats_cache():
    global white_list
 
-   if os.path.exists(buddy_fname):
+   if os.path.exists(BUDDY_FNAME):
       num_buckets = 0
-      with open(buddy_fname) as f:
+      with open(BUDDY_FNAME) as f:
          for line in f:
             match = re_buddyinfo.search(line)
             if not match:
@@ -129,12 +127,12 @@ def init_stats_cache():
       collectd.info('buddyinfo: zone_list : %s' % (zone_list))
       collectd.info('buddyinfo: white_list: %s' % (white_list))
    else:
-      collectd.info('buddyinfo: init_stats_cache: path: %s does not exist' 
-                    % (buddy_fname))
+      collectd.info('buddyinfo: init_stats_cache: path: %s does not exist'
+                    % (BUDDY_FNAME))
 
 def collect_buddyinfo():
-    if os.path.exists(buddy_fname):
-        with open(buddy_fname) as f:
+    if os.path.exists(BUDDY_FNAME):
+        with open(BUDDY_FNAME) as f:
             for line in f:
                match = re_buddyinfo.search(line)
                if not match:
@@ -147,31 +145,31 @@ def collect_buddyinfo():
                key_val = dict(zip(white_list, free_pages))
                metric = collectd.Values()
                metric.host = host_name
-               metric.plugin = 'buddyinfo'
+               metric.plugin = METRIC_PLUGIN
                metric.plugin_instance = node
-               metric.type = 'gauge'
+               metric.type = METRIC_TYPE
                for k in range(0, len(white_list)):
-                  metric.type_instance = 'zone_' + zone + '.' 
+                  metric.type_instance = 'zone_' + zone + '.'
                   metric.type_instance += white_list[k]
                   metric.values = [free_pages[k]]
                   metric.dispatch()
             f.close()
     else:
-        collectd.error('buddyinfo: procfs path: %s does not exist' 
-                       % (buddy_fname))
+        collectd.error('buddyinfo: procfs path: %s does not exist'
+                       % (BUDDY_FNAME))
 
 def swap_current_cache():
    stats_cache = stats_current.copy()
 
 def configer(ObjConfiguration):
-   collectd.info('buddyinfo plugin: configuring host: %s' % (host_name)) 
+   collectd.info('buddyinfo plugin: configuring host: %s' % (host_name))
 
 def initer():
    get_host_type()
    collectd.info('buddyinfo plugin: host of type: %s' % (host_type))
-   collectd.info('buddyinfo initer: white list: %s ' % (white_list))
+   collectd.info('buddyinfo initer: white list: %s' % (white_list))
    init_stats_cache()
-   collectd.info('buddyinfo init: stats_cache: %s ' % (stats_cache))
+   collectd.info('buddyinfo init: stats_cache: %s' % (stats_cache))
 
 def reader(input_data=None):
    collect_buddyinfo()
@@ -179,10 +177,10 @@ def reader(input_data=None):
 
 def writer(metric, data=None):
    for i in metric.values:
-      collectd.debug("%s (%s): %f" % (metric.plugin, metric.type, i))
+      collectd.debug('%s (%s): %f' % (metric.plugin, metric.type, i))
 
 def shutdown():
-   collectd.info("buddyinfo plugin shutting down")
+   collectd.info('buddyinfo plugin shutting down')
 
 #== Callbacks ==#
 if (os_name == 'Linux'):
@@ -193,4 +191,3 @@ if (os_name == 'Linux'):
    collectd.register_shutdown(shutdown)
 else:
    collectd.warning('buddyinfo plugin currently works for Linux only')
-

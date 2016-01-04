@@ -1,0 +1,378 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>fusionio &mdash; LinuxTelemetry 1 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="LinuxTelemetry 1 documentation" href="../index.html" />
+    <link rel="up" title="Module code" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../index.html">LinuxTelemetry 1 documentation</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for fusionio</h1><div class="highlight"><pre>
+<span class="c">#!/usr/bin/python</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">**fusionio.py** </span>
+<span class="sd"> </span>
+<span class="sd">Collectd plugin for fusion-io device measurement. It</span>
+<span class="sd">currently measures:</span>
+<span class="sd">1. physical blocks read</span>
+<span class="sd">2. physical blocks written</span>
+<span class="sd">3. total blocks</span>
+<span class="sd">4. min block erases count</span>
+<span class="sd">5. max block erases count</span>
+<span class="sd">6. average block erases count</span>
+
+<span class="sd">physical bytes written are obtained as:</span>
+<span class="sd">---------------------------------------</span>
+
+<span class="sd">cmd_bytes_written = &#39;/usr/bin/fio-status -a | &#39;</span>
+
+<span class="sd">cmd_bytes_written += &#39;grep \&quot;Physical bytes written:\&quot; | &#39;</span>
+
+<span class="sd">cmd_bytes_written += &#39;awk \&#39;{print $4}\&#39;&#39;</span>
+
+<span class="sd">physical bytes read are obtained as:</span>
+<span class="sd">------------------------------------</span>
+
+<span class="sd">cmd_bytes_read = &#39;/usr/bin/fio-status -a | &#39;</span>
+
+<span class="sd">cmd_bytes_read += &#39;grep \&quot;Physical bytes read   :\&quot; | &#39;</span>
+
+<span class="sd">cmd_bytes_read += &#39;awk \&#39;{print $5}\&#39;&#39;</span>
+
+<span class="sd">Block erase counts (total, min, max, avg) are obtained as:</span>
+<span class="sd">----------------------------------------------------------</span>
+
+<span class="sd">cmd_erased_blocks = &#39;/usr/bin/fio-get-erase-count /dev/fct0 | &#39;</span>
+
+<span class="sd">cmd_erased_blocks += &#39;tail -n 5 | cut -d: -f 2 | sed \&#39;s/^ \*//\&#39;&#39;</span>
+
+<span class="sd">&quot;&quot;&quot;</span> 
+
+<span class="kn">import</span> <span class="nn">collectd</span>
+<span class="kn">import</span> <span class="nn">platform</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">socket</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+
+<span class="n">os_name</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span>
+<span class="n">host_name</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">gethostbyaddr</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">gethostname</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">host_types</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;app&#39;</span><span class="p">,</span> <span class="s">&#39;db&#39;</span><span class="p">,</span> <span class="s">&#39;ffx&#39;</span><span class="p">,</span> <span class="s">&#39;indexer&#39;</span><span class="p">,</span> <span class="s">&#39;search&#39;</span><span class="p">,</span> <span class="s">&#39;other&#39;</span><span class="p">]</span>
+<span class="n">host_type</span> <span class="o">=</span> <span class="s">&#39;other&#39;</span>
+
+<span class="n">cmd_fio_status</span> <span class="o">=</span> <span class="s">&#39;/usr/bin/fio-status&#39;</span>
+<span class="n">args_fio_status</span> <span class="o">=</span> <span class="s">&#39;-a&#39;</span>
+<span class="n">key_bytes_read</span> <span class="o">=</span> <span class="s">&#39;Physical bytes read   :&#39;</span>
+<span class="n">key_bytes_written</span> <span class="o">=</span> <span class="s">&#39;Physical bytes written:&#39;</span>
+
+<span class="n">cmd_fio_get_erase_blocks</span> <span class="o">=</span> <span class="s">&#39;/usr/bin/fio-get-erase-count&#39;</span>
+<span class="n">args_fio_get_erase_blocks</span> <span class="o">=</span> <span class="s">&#39;-s /dev/fct0&#39;</span>
+<span class="n">key_blocks_total</span> <span class="o">=</span> <span class="s">&#39;Total blocks:&#39;</span>
+<span class="n">key_blocks_min</span> <span class="o">=</span> <span class="s">&#39;Min:&#39;</span>
+<span class="n">key_blocks_max</span> <span class="o">=</span> <span class="s">&#39;Max:&#39;</span>
+<span class="n">key_blocks_avg</span> <span class="o">=</span> <span class="s">&#39;Avg:&#39;</span>
+
+<span class="n">fio_fname</span> <span class="o">=</span> <span class="s">&#39;/proc/fusion/fio/fioa/data/groomer/stats&#39;</span>
+<span class="n">fio_fields</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;Blocks&#39;</span><span class="p">]</span>
+              <span class="c">#&#39;Data copied:&#39;]</span>
+<span class="n">fio_white_list</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;phy_bytes_written&#39;</span><span class="p">,</span>
+                  <span class="s">&#39;phy_bytes_read&#39;</span><span class="p">,</span>
+                  <span class="s">&#39;erased_blocks_total&#39;</span><span class="p">,</span>
+                  <span class="s">&#39;erased_blocks_min&#39;</span><span class="p">,</span>
+                  <span class="s">&#39;erased_blocks_max&#39;</span><span class="p">,</span>
+                  <span class="s">&#39;erased_blocks_avg&#39;</span><span class="p">]</span>
+
+<span class="n">fio_metrics</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;physical_bytes_read_per_sec&#39;</span><span class="p">,</span>
+               <span class="s">&#39;physical_bytes_written_per_sec&#39;</span><span class="p">,</span>
+               <span class="s">&#39;blocks_erased_per_sec&#39;</span><span class="p">]</span>
+
+<span class="n">stats_cache</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="n">stats_current</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="n">fiostats_cache</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="n">fiostats_current</span> <span class="o">=</span> <span class="p">{}</span>
+
+<div class="viewcode-block" id="get_host_type"><a class="viewcode-back" href="../fusionio.html#fusionio.get_host_type">[docs]</a><span class="k">def</span> <span class="nf">get_host_type</span><span class="p">():</span>
+   <span class="k">global</span> <span class="n">host_type</span>
+   <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">host_types</span><span class="p">:</span>
+      <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">host_name</span><span class="p">:</span>
+         <span class="n">host_type</span> <span class="o">=</span> <span class="n">i</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;fusionio: get_host_by_type: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">host_type</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="is_fio_device"><a class="viewcode-back" href="../fusionio.html#fusionio.is_fio_device">[docs]</a><span class="k">def</span> <span class="nf">is_fio_device</span><span class="p">():</span>
+   <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">fio_fname</span><span class="p">):</span>
+      <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">cmd_fio_status</span><span class="p">):</span>
+         <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">cmd_fio_get_erase_blocks</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">True</span>
+         <span class="k">else</span><span class="p">:</span>
+            <span class="n">collectd</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;</span><span class="si">%s</span><span class="s"> not found:&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">cmd_fio_get_erase_blocks</span><span class="p">))</span>
+      <span class="k">else</span><span class="p">:</span>
+         <span class="n">collectd</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;</span><span class="si">%s</span><span class="s"> not found:&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">cmd_fio_status</span><span class="p">))</span>
+   <span class="k">else</span><span class="p">:</span>
+      <span class="n">collectd</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;</span><span class="si">%s</span><span class="s"> not found:&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">fio_fname</span><span class="p">))</span>
+
+   <span class="k">return</span> <span class="bp">False</span>
+</div>
+<div class="viewcode-block" id="run_cmd"><a class="viewcode-back" href="../fusionio.html#fusionio.run_cmd">[docs]</a><span class="k">def</span> <span class="nf">run_cmd</span> <span class="p">(</span><span class="n">cmd</span><span class="p">):</span>
+   <span class="n">s</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+   <span class="n">p</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> 
+                        <span class="n">shell</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> 
+                        <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span> 
+                        <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">STDOUT</span><span class="p">)</span>
+   <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">p</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">readlines</span><span class="p">():</span>
+      <span class="n">s</span> <span class="o">+=</span> <span class="n">line</span>
+
+   <span class="k">return</span> <span class="n">s</span>
+</div>
+<div class="viewcode-block" id="grep"><a class="viewcode-back" href="../fusionio.html#fusionio.grep">[docs]</a><span class="k">def</span> <span class="nf">grep</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">pattern</span><span class="p">):</span>
+   <span class="k">return</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s">r&#39;^.*</span><span class="si">%s</span><span class="s">.*?$&#39;</span><span class="o">%</span><span class="n">pattern</span><span class="p">,</span><span class="n">s</span><span class="p">,</span><span class="n">flags</span><span class="o">=</span><span class="n">re</span><span class="o">.</span><span class="n">M</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="remove_start"><a class="viewcode-back" href="../fusionio.html#fusionio.remove_start">[docs]</a><span class="k">def</span> <span class="nf">remove_start</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">word_to_remove</span><span class="p">):</span>
+   <span class="k">return</span> <span class="n">s</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">word_to_remove</span><span class="p">):]</span> <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">word_to_remove</span><span class="p">)</span> <span class="k">else</span> <span class="s">&quot;&quot;</span>
+</div>
+<div class="viewcode-block" id="extract_val"><a class="viewcode-back" href="../fusionio.html#fusionio.extract_val">[docs]</a><span class="k">def</span> <span class="nf">extract_val</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+   <span class="n">val</span> <span class="o">=</span> <span class="mi">0</span>
+   <span class="k">if</span> <span class="p">(</span><span class="n">out</span><span class="p">):</span>
+      <span class="n">key_line</span> <span class="o">=</span> <span class="n">grep</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span><span class="o">.</span><span class="n">lstrip</span><span class="p">()</span>
+      <span class="k">if</span> <span class="p">(</span><span class="n">key_line</span><span class="p">):</span>
+         <span class="n">collectd</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;key: </span><span class="si">%s</span><span class="s"> key_line: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">key_line</span><span class="p">))</span>
+         <span class="n">val_str</span> <span class="o">=</span> <span class="n">remove_start</span><span class="p">(</span><span class="n">key_line</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+         <span class="n">collectd</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;val_str: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">val_str</span><span class="p">))</span>
+         <span class="k">if</span> <span class="s">&#39;.&#39;</span> <span class="ow">in</span> <span class="n">val_str</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="nb">long</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">val_str</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39;,&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">)))</span>
+         <span class="k">else</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="nb">long</span><span class="p">(</span><span class="n">val_str</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39;,&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">))</span>
+         <span class="n">collectd</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;value: </span><span class="si">%d</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">val</span><span class="p">))</span>
+      <span class="k">else</span><span class="p">:</span>
+         <span class="n">collectd</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;no line found with key: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">key</span><span class="p">))</span>
+   <span class="k">else</span><span class="p">:</span>
+      <span class="n">collectd</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;nothing to process in provided output str: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">out</span><span class="p">))</span>
+
+   <span class="k">return</span> <span class="n">val</span>
+</div>
+<div class="viewcode-block" id="get_physical_bytes"><a class="viewcode-back" href="../fusionio.html#fusionio.get_physical_bytes">[docs]</a><span class="k">def</span> <span class="nf">get_physical_bytes</span><span class="p">():</span>
+   <span class="n">bytes_written</span> <span class="o">=</span> <span class="mi">0</span>
+   <span class="n">bytes_read</span> <span class="o">=</span> <span class="mi">0</span>
+
+   <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">cmd_fio_status</span><span class="p">):</span>
+      <span class="n">cmd</span> <span class="o">=</span> <span class="n">cmd_fio_status</span> <span class="o">+</span> <span class="s">&#39; &#39;</span> <span class="o">+</span> <span class="n">args_fio_status</span>
+      <span class="n">out</span> <span class="o">=</span> <span class="n">run_cmd</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
+      <span class="k">if</span> <span class="p">(</span><span class="n">out</span><span class="p">):</span>
+         <span class="n">bytes_written</span> <span class="o">=</span> <span class="n">extract_val</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">key_bytes_written</span><span class="p">)</span>
+         <span class="n">bytes_read</span> <span class="o">=</span> <span class="n">extract_val</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">key_bytes_read</span><span class="p">)</span>
+      <span class="k">else</span><span class="p">:</span>
+         <span class="n">collectd</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;get_physical_bytes: failed to run cmd: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">cmd</span><span class="p">))</span>
+   <span class="k">else</span><span class="p">:</span>
+      <span class="n">collectd</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s">&#39;get_physical_bytes: </span><span class="si">%s</span><span class="s"> not found&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">cmd_fio_status</span><span class="p">))</span>
+
+   <span class="k">return</span> <span class="p">(</span><span class="n">bytes_read</span><span class="p">,</span> <span class="n">bytes_written</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="get_block_erases"><a class="viewcode-back" href="../fusionio.html#fusionio.get_block_erases">[docs]</a><span class="k">def</span> <span class="nf">get_block_erases</span><span class="p">():</span>
+   <span class="n">b_total</span> <span class="o">=</span> <span class="mi">0</span>
+   <span class="n">b_min</span> <span class="o">=</span> <span class="mi">0</span>
+   <span class="n">b_max</span> <span class="o">=</span> <span class="mi">0</span>
+   <span class="n">b_avg</span> <span class="o">=</span> <span class="mi">0</span>
+
+   <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">cmd_fio_get_erase_blocks</span><span class="p">):</span>
+      <span class="n">cmd</span> <span class="o">=</span> <span class="n">cmd_fio_get_erase_blocks</span> <span class="o">+</span> <span class="s">&#39; &#39;</span> <span class="o">+</span> <span class="n">args_fio_get_erase_blocks</span>
+      <span class="n">out</span> <span class="o">=</span> <span class="n">run_cmd</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
+      <span class="k">if</span> <span class="p">(</span><span class="n">out</span><span class="p">):</span>
+         <span class="n">ebs</span> <span class="o">=</span> <span class="n">out</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)</span>
+         <span class="n">b_total</span> <span class="o">=</span> <span class="n">extract_val</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">key_blocks_total</span><span class="p">)</span>
+         <span class="n">b_min</span> <span class="o">=</span> <span class="n">extract_val</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">key_blocks_min</span><span class="p">)</span>
+         <span class="n">b_max</span> <span class="o">=</span> <span class="n">extract_val</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">key_blocks_max</span><span class="p">)</span>
+         <span class="n">b_avg</span> <span class="o">=</span> <span class="n">extract_val</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">key_blocks_avg</span><span class="p">)</span>
+      <span class="k">else</span><span class="p">:</span>
+         <span class="n">collectd</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;get_block_erases: failed to run cmd: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span><span class="p">(</span><span class="n">cmd</span><span class="p">))</span>
+   <span class="k">else</span><span class="p">:</span>
+      <span class="n">collectd</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s">&#39;get_block_erases: </span><span class="si">%s</span><span class="s"> missing?&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">cmd_get_erase_blocks</span><span class="p">))</span>
+
+   <span class="k">return</span> <span class="p">(</span><span class="n">b_total</span><span class="p">,</span> <span class="n">b_min</span><span class="p">,</span> <span class="n">b_max</span><span class="p">,</span> <span class="n">b_avg</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="get_fiostats"><a class="viewcode-back" href="../fusionio.html#fusionio.get_fiostats">[docs]</a><span class="k">def</span> <span class="nf">get_fiostats</span><span class="p">():</span>
+   <span class="n">phy_b_r</span><span class="p">,</span> <span class="n">phy_b_w</span> <span class="o">=</span> <span class="n">get_physical_bytes</span><span class="p">()</span>
+   <span class="n">eb_total</span><span class="p">,</span> <span class="n">eb_min</span><span class="p">,</span> <span class="n">eb_max</span><span class="p">,</span> <span class="n">eb_avg</span> <span class="o">=</span> <span class="n">get_block_erases</span><span class="p">()</span>
+
+   <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">fio_white_list</span><span class="p">:</span>
+      <span class="n">fiostats_current</span><span class="p">[(</span><span class="n">m</span><span class="p">,</span> <span class="s">&#39;ts&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+   <span class="n">fiostats_current</span><span class="p">[(</span><span class="s">&#39;phy_bytes_written&#39;</span><span class="p">,</span> <span class="s">&#39;val&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">phy_b_w</span>
+   <span class="n">fiostats_current</span><span class="p">[(</span><span class="s">&#39;phy_bytes_read&#39;</span><span class="p">,</span> <span class="s">&#39;val&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">phy_b_r</span>
+   <span class="n">fiostats_current</span><span class="p">[(</span><span class="s">&#39;erased_blocks_total&#39;</span><span class="p">,</span> <span class="s">&#39;val&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">eb_total</span>
+   <span class="n">fiostats_current</span><span class="p">[(</span><span class="s">&#39;erased_blocks_min&#39;</span><span class="p">,</span> <span class="s">&#39;val&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">eb_min</span>
+   <span class="n">fiostats_current</span><span class="p">[(</span><span class="s">&#39;erased_blocks_max&#39;</span><span class="p">,</span> <span class="s">&#39;val&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">eb_max</span>
+   <span class="n">fiostats_current</span><span class="p">[(</span><span class="s">&#39;erased_blocks_avg&#39;</span><span class="p">,</span> <span class="s">&#39;val&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">eb_avg</span>
+
+   <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">fio_white_list</span><span class="p">:</span>
+      <span class="n">metric</span> <span class="o">=</span> <span class="n">collectd</span><span class="o">.</span><span class="n">Values</span><span class="p">()</span>
+      <span class="n">metric</span><span class="o">.</span><span class="n">host</span> <span class="o">=</span> <span class="n">host_name</span>
+      <span class="n">metric</span><span class="o">.</span><span class="n">plugin</span> <span class="o">=</span> <span class="s">&#39;fusionio&#39;</span>
+      <span class="n">metric</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="s">&#39;gauge&#39;</span>
+      <span class="n">metric</span><span class="o">.</span><span class="n">type_instance</span> <span class="o">=</span> <span class="n">m</span>
+      <span class="n">metric</span><span class="o">.</span><span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="n">fiostats_current</span><span class="p">[(</span><span class="n">m</span><span class="p">,</span> <span class="s">&#39;val&#39;</span><span class="p">)]]</span>
+      <span class="n">metric</span><span class="o">.</span><span class="n">dispatch</span><span class="p">()</span>
+
+
+</div>
+<div class="viewcode-block" id="init_stats_cache"><a class="viewcode-back" href="../fusionio.html#fusionio.init_stats_cache">[docs]</a><span class="k">def</span> <span class="nf">init_stats_cache</span><span class="p">():</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">fio_fname</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fio_fname</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">fields</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+                <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="n">fl</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">fl</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">]</span>
+                <span class="n">key_name</span> <span class="o">=</span> <span class="n">fields</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">key_val</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">fields</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+                <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">key_name</span> <span class="ow">in</span> <span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">fio_fields</span><span class="p">):</span>
+                    <span class="n">stats_cache</span><span class="p">[(</span><span class="n">key_name</span><span class="p">,</span> <span class="s">&#39;val&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">key_val</span>
+                    <span class="n">stats_cache</span><span class="p">[(</span><span class="n">key_name</span><span class="p">,</span> <span class="s">&#39;ts&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;fusionio: init_stats_cache: path: </span><span class="si">%s</span><span class="s"> does not exist&#39;</span> 
+                      <span class="o">%</span> <span class="p">(</span><span class="n">fio_fname</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="collect_fiostats"><a class="viewcode-back" href="../fusionio.html#fusionio.collect_fiostats">[docs]</a><span class="k">def</span> <span class="nf">collect_fiostats</span><span class="p">():</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">fio_fname</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fio_fname</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">fields</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+                <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="n">fl</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">fl</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">]</span>
+                <span class="n">key_name</span> <span class="o">=</span> <span class="n">fields</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">key_val</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">fields</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+                <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">key_name</span> <span class="ow">in</span> <span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">fio_fields</span><span class="p">):</span>
+                    <span class="n">metric</span> <span class="o">=</span> <span class="n">collectd</span><span class="o">.</span><span class="n">Values</span><span class="p">()</span>
+                    <span class="n">metric</span><span class="o">.</span><span class="n">host</span> <span class="o">=</span> <span class="n">host_name</span>
+                    <span class="n">metric</span><span class="o">.</span><span class="n">plugin</span> <span class="o">=</span> <span class="s">&#39;fusionio&#39;</span>
+                    <span class="n">metric</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="s">&#39;gauge&#39;</span>
+                    <span class="n">metric</span><span class="o">.</span><span class="n">type_instance</span> <span class="o">=</span> <span class="n">key_name</span>
+                    <span class="n">metric</span><span class="o">.</span><span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="n">key_val</span><span class="p">]</span>
+                    <span class="n">stats_current</span><span class="p">[(</span><span class="n">key_name</span><span class="p">,</span> <span class="s">&#39;val&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">key_val</span>
+                    <span class="n">metric</span><span class="o">.</span><span class="n">dispatch</span><span class="p">()</span>
+                    <span class="n">stats_current</span><span class="p">[(</span><span class="n">key_name</span><span class="p">,</span> <span class="s">&#39;ts&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;fusionio: procfs path: </span><span class="si">%s</span><span class="s"> does not exist&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">fio_fname</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="swap_current_cache"><a class="viewcode-back" href="../fusionio.html#fusionio.swap_current_cache">[docs]</a><span class="k">def</span> <span class="nf">swap_current_cache</span><span class="p">():</span>
+   <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">fio_fields</span><span class="p">:</span>
+       <span class="n">stats_cache</span><span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="s">&#39;val&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">stats_current</span><span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="s">&#39;val&#39;</span><span class="p">)]</span>
+       <span class="n">stats_cache</span><span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="s">&#39;ts&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">stats_current</span><span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="s">&#39;ts&#39;</span><span class="p">)]</span>
+
+</div>
+<div class="viewcode-block" id="configer"><a class="viewcode-back" href="../fusionio.html#fusionio.configer">[docs]</a><span class="k">def</span> <span class="nf">configer</span><span class="p">(</span><span class="n">ObjConfiguration</span><span class="p">):</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;fusionio plugin: configuring host: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">host_name</span><span class="p">))</span> 
+</div>
+<div class="viewcode-block" id="initer"><a class="viewcode-back" href="../fusionio.html#fusionio.initer">[docs]</a><span class="k">def</span> <span class="nf">initer</span><span class="p">():</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;fusionio plugin: host of type: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">host_type</span><span class="p">))</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;fusionio initer: fields list: </span><span class="si">%s</span><span class="s"> &#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">fio_fields</span><span class="p">))</span>
+   <span class="n">init_stats_cache</span><span class="p">()</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;fusionio init: stats_cache: </span><span class="si">%s</span><span class="s"> &#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">stats_cache</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="reader"><a class="viewcode-back" href="../fusionio.html#fusionio.reader">[docs]</a><span class="k">def</span> <span class="nf">reader</span><span class="p">(</span><span class="n">input_data</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+   <span class="n">get_fiostats</span><span class="p">()</span>
+   <span class="n">collect_fiostats</span><span class="p">()</span>
+   <span class="c">#dispatch_metrics()</span>
+   <span class="n">swap_current_cache</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="writer"><a class="viewcode-back" href="../fusionio.html#fusionio.writer">[docs]</a><span class="k">def</span> <span class="nf">writer</span><span class="p">(</span><span class="n">metric</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+   <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">metric</span><span class="o">.</span><span class="n">values</span><span class="p">:</span>
+      <span class="n">collectd</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%s</span><span class="s"> (</span><span class="si">%s</span><span class="s">): </span><span class="si">%f</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">metric</span><span class="o">.</span><span class="n">plugin</span><span class="p">,</span> <span class="n">metric</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="shutdown"><a class="viewcode-back" href="../fusionio.html#fusionio.shutdown">[docs]</a><span class="k">def</span> <span class="nf">shutdown</span><span class="p">():</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;fusionio plugin shutting down&quot;</span><span class="p">)</span>
+
+<span class="c">#== Callbacks ==#</span></div>
+<span class="n">get_host_type</span><span class="p">()</span>
+<span class="k">if</span> <span class="p">((</span><span class="n">host_type</span> <span class="o">==</span> <span class="s">&#39;search&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">os_name</span> <span class="o">==</span> <span class="s">&#39;Linux&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">is_fio_device</span><span class="p">())):</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">register_config</span><span class="p">(</span><span class="n">configer</span><span class="p">)</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">register_init</span><span class="p">(</span><span class="n">initer</span><span class="p">)</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">register_read</span><span class="p">(</span><span class="n">reader</span><span class="p">)</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">register_write</span><span class="p">(</span><span class="n">writer</span><span class="p">)</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">register_shutdown</span><span class="p">(</span><span class="n">shutdown</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;fio plugin works for search hosts only; type: </span><span class="si">%s</span><span class="s"> os: </span><span class="si">%s</span><span class="s">&#39;</span>
+                  <span class="o">%</span> <span class="p">(</span><span class="n">host_type</span><span class="p">,</span> <span class="n">os_name</span><span class="p">))</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../index.html">LinuxTelemetry 1 documentation</a> &raquo;</li>
+          <li><a href="index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2016, Abdul Waheed.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

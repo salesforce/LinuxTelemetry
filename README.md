@@ -9,12 +9,12 @@ levels. These python based plugins extend base collectd to monitor
 
 Following plugins are being provided:
 
-1. Diskstats
-2. Fusion-io
-3. Vmstats
-4. Buddyinfo
-5. Zoneinfo
-6. Netstats
+1. [Diskstats](docs/_build/html/diskstats.html)
+2. [Fusion-io](docs/_build/html/fusionio.html)
+3. [Vmstats](docs/_build/html/vmstats.html)
+4. [Buddyinfo](docs/_build/html/buddyinfo.html)
+5. [Zoneinfo](docs/_build/html/zoneinfo.html)
+6. [Netstats](docs/_build/html/netstats.html)
 
 Except for fusion-io plugin, all others gather system level metrics
 through procfs from corresponding locations: /proc/diskstats,
@@ -44,7 +44,7 @@ packages are needed for all of the above python plugins to work:
 Ensure that your yum repo has above three RPMs, which should be
 installed by:
 
-`yum --nogpgcheck -y install collectd libcollectdclient collectd-python`
+`yum --nogpgcheck install collectd libcollectdclient collectd-python`
 
 Verify the installation by running
 
@@ -61,9 +61,11 @@ cd collectd
 ./configure --prefix=/usr --sysconfdir=/etc --libdir=/usr/lib --mandir=/usr/share/man --enable-python
 make
 sudo make install
+sudo cp contrib/redhat/init.d-collectd /etc/init.d/collectd
+sudo chmod +x /etc/init.d/collectd
 ```
 
-Edit collectd configuration file in /etc/collectd.conf to allow it to use external plugin configurations by adding following lines to it:
+Edit collectd configuration in /etc/collectd.conf to allow it to use external plugin configurations by adding following lines to it:
 
 ```
 <Include "/etc/collectd.d">
@@ -73,40 +75,43 @@ Edit collectd configuration file in /etc/collectd.conf to allow it to use extern
 
 ###Step 2. Installation of telemetry plugins:
 
-Run the install script:
+Install plugins using:
 
-`sudo ./install.sh`
+`sudo python setup.py install`
 
-This install script assumes that base collectd installation through
-yum resulted in:
+This install script requires that base collectd is already installed with
+following files/directories:
 
 1. /etc/collectd.conf
 2. /etc/collectd.d (for plugin in conf files)
 3. /usr/share/collectd/types.db
 4. /usr/share/collectd/plugins/python (for python plugins)
 
-Depending on the RPM packaging, it is not guaranteed that above will
-be true in all cases. In those cases, either base installation or
-telemetry plugin installation script will require adjustments.
-
 
 ###Step 3. Start/restart collectd:
 
 `service collectd start` (or `restart` if already running)
-
-In case of manual installation from source:
-
-`sudo collectd -C /etc/collectd.conf`
 
 
 Testing
 -------
 
 In order to test the measurements that these plugins gather, enable
-CSV plugin from collectd.conf to print the values in text files. You
-can choose any one of several available collectd supported tools to forward the
-measurements from target hosts to an aggregation point in a cloud
-environment for continuous remote monitoring. For instance, Graphite/Carbon can be used for forwarding and visualization of collectd metrics. Collectd comes with wrie_graphite plugin, which can be enabled in collectd.conf to forward metrics to host(s) running Graphite/Carbon as follows:
+CSV plugin from collectd.conf to print the values in text files.
+
+```
+LoadPlugin csv
+<Plugin csv>
+       DataDir "/var/lib/collectd/csv"
+</Plugin>
+```
+
+Multiple collectd supported tools can forward thevmeasurements from target
+hosts to an aggregation point in a cloud environment for continuous remote
+monitoring. For instance, Graphite/Carbon can be used for forwarding and
+visualization of collectd metrics. Collectd comes with wrie_graphite plugin,
+which can be enabled in collectd.conf to forward metrics to host(s) running
+Graphite/Carbon as follows:
 
 ```
 LoadPlugin write_graphite
@@ -162,4 +167,4 @@ Linux uses buddy allocator for memory management. This plugin is based on number
 This plugin extracts metrics freom /proc/zoneinfo, which essentially breaks down virtual memory stats with respect to each NUMA node and memory zone. It supplements the measurements provided by vmstta and buddyinfo plugins with respect to zones.
 
 ###Netstats
-Linux maintains network protocol specific counters under /proc/net/snmp and /proc/net/netstat. Protocols include IP, ICMP, TCP, UDP, and their extensions. This plugin exposes those counters, which are typically available through 'netstat -s' command for net-tools implementation of netstat. 
+Linux maintains network protocol specific counters under /proc/net/snmp and /proc/net/netstat. Protocols include IP, ICMP, TCP, UDP, and their extensions. This plugin exposes those counters, which are typically available through 'netstat -s' command for net-tools implementation of netstat.

@@ -1,8 +1,6 @@
 #!/usr/bin/python
 
-############################################################
-# zoneinfo.py
-#
+##########################################################################
 # Copyright (c) 2015, Salesforce.com, Inc.
 # All rights reserved.
 #
@@ -30,16 +28,16 @@
 # IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 # EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
-##########################################################
+##########################################################################
 
-##########################################################
-# Plugin description:
-# 
-# /proc/zoneinfo breaks down virtual memory stats with
-# respect to each NUMA node and memory zone. It suppliments
-# the measurements provided by vmstta and buddyinfo plugins.
-############################################################
+"""
+**zoneinfo.py**
+
+/proc/zoneinfo breaks down virtual memory stats with respect to each
+NUMA node and memory zone. It supplements the measurements
+provided by vmstats and buddyinfo plugins.
+
+"""
 
 import collectd
 import platform
@@ -53,7 +51,11 @@ host_name = socket.gethostbyaddr(socket.gethostname())[0]
 host_types = ['app', 'db', 'ffx', 'indexer', 'search', 'other']
 host_type = 'other'
 
-zoneinfo_fname = '/proc/zoneinfo'
+ZONEINFO_FNAME = '/proc/zoneinfo'
+
+METRIC_PLUGIN = 'zonefino'
+METRIC_TYPE = 'gauge'
+
 
 white_list = ['min',
               'low',
@@ -104,8 +106,8 @@ def get_host_type():
          host_type = i
 
 def init_stats_cache():
-   if os.path.exists(zoneinfo_fname):
-      with open(zoneinfo_fname) as f:
+   if os.path.exists(ZONEINFO_FNAME):
+      with open(ZONEINFO_FNAME) as f:
          match = re.finditer(re_zoneinfo, f.read())
          if not match:
             collectd.error('zoneinfo: init: pattern not found')
@@ -130,12 +132,12 @@ def init_stats_cache():
          collectd.info('zone_list: %s' % (zone_list))
          collectd.info('white_list: %s' % (white_list))
    else:
-      collectd.error('zoneinfo: init: procfs path: %s does not exist' 
-                     % (zoneinfo_fname))
+      collectd.error('zoneinfo: init: procfs path: %s does not exist'
+                     % (ZONEINFO_FNAME))
 
 def collect_zoneinfo():
-   if os.path.exists(zoneinfo_fname):
-      with open(zoneinfo_fname) as f:
+   if os.path.exists(ZONEINFO_FNAME):
+      with open(ZONEINFO_FNAME) as f:
          match = re.finditer(re_zoneinfo, f.read())
          if not match:
             collectd.error('zoneinfo: collect: pattern not found')
@@ -150,25 +152,25 @@ def collect_zoneinfo():
             stats_current[(node, zone, 'ts')] = time.time()
             metric = collectd.Values()
             metric.host = host_name
-            metric.plugin = 'zoneinfo'
+            metric.plugin = METRIC_PLUGIN
             metric.plugin_instance = node
-            metric.type = 'gauge'
+            metric.type = METRIC_TYPE
             for k in range(0, len(white_list)):
-               metric.type_instance = 'zone_' + zone + '_' 
+               metric.type_instance = 'zone_' + zone + '_'
                metric.type_instance += white_list[k]
                metric.values = [zone_pages[k]]
                metric.dispatch()
 
       f.close()
    else:
-      collectd.error('zoneinfo: collect: procfs path: %s does not exist' 
-                     % (zoneinfo_fname))
+      collectd.error('zoneinfo: collect: procfs path: %s does not exist'
+                     % (ZONEINFO_FNAME))
 
 def swap_current_cache():
    stats_cache = stats_current.copy()
 
 def configer(ObjConfiguration):
-   collectd.info('zoneinfo plugin: configuring host: %s' % (host_name)) 
+   collectd.info('zoneinfo plugin: configuring host: %s' % (host_name))
 
 def initer():
    get_host_type()
@@ -197,4 +199,3 @@ if (os_name == 'Linux'):
    collectd.register_shutdown(shutdown)
 else:
    collectd.warning('zoneinfo plugin currently works for Linux only')
-

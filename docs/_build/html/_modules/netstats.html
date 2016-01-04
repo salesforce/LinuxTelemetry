@@ -1,0 +1,475 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>netstats &mdash; LinuxTelemetry 1 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="LinuxTelemetry 1 documentation" href="../index.html" />
+    <link rel="up" title="Module code" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../index.html">LinuxTelemetry 1 documentation</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for netstats</h1><div class="highlight"><pre>
+<span class="c">#!/usr/bin/python</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">**netstats.py** </span>
+
+<span class="sd">This plugin exposes linux network protocol counters </span>
+<span class="sd">that are available through /proc/net/snmp and </span>
+<span class="sd">/proc/net/netstat. These protocol counters are typically</span>
+<span class="sd">examined through netstat (such as, &#39;netstat -s&#39; command),</span>
+<span class="sd">which is part of net-tools. While this plugin reads all</span>
+<span class="sd">available counters, it publishes only a sub-set of them,</span>
+<span class="sd">which are listed in white_list. </span>
+<span class="sd"> </span>
+<span class="sd">Protocol counter names in /proc/net/snmp and their</span>
+<span class="sd">meanings:</span>
+
+<span class="sd">Ip:</span>
+<span class="sd">---</span>
+<span class="sd">- InReceives   : total packets received</span>
+<span class="sd">- InHdrErrors  : packets received with invalid addresses</span>
+<span class="sd">- ForwDatagrams: forwarded</span>
+<span class="sd">- InDiscards   : incoming packets discarded</span>
+<span class="sd">- InDelivers   : incoming packets delivered</span>
+<span class="sd">- OutRequests  : requests sent out</span>
+<span class="sd">- OutNoRoutes  : fragments dropped_after timeout</span>
+<span class="sd">- ReasmReqds   : reassemblies required</span>
+<span class="sd">- ReasmOKs     : packets reassembled ok</span>
+<span class="sd">- ReasmFails   : packet reassembles failed</span>
+
+<span class="sd">Icmp:</span>
+<span class="sd">-----</span>
+<span class="sd">- InMsgs           : ICMP messages received</span>
+<span class="sd">- InErrors         : input ICMP message failed</span>
+<span class="sd">- InDestUnreachs   : destination unreachable</span>
+<span class="sd">- InTimeExcds      : timeout in transit</span>
+<span class="sd">- InParmProbs      : wrong parameters&#39;</span>
+<span class="sd">- InSrcQuenchs     : source quenches</span>
+<span class="sd">- InRedirects      : redirects</span>
+<span class="sd">- InEchos          : echo requests</span>
+<span class="sd">- InEchoReps       : echo replies</span>
+<span class="sd">- InTimestamps     : timestamp request</span>
+<span class="sd">- InTimestampReps  : timestamp reply</span>
+<span class="sd">- InAddrMasks      : address mask request</span>
+<span class="sd">- InAddrMaskReps   : address mask replies</span>
+<span class="sd">- OutMsgs          : ICMP messages sent</span>
+<span class="sd">- OutErrors        : ICMP messages failed</span>
+<span class="sd">- OutDestUnreachs  : destination unreachable</span>
+<span class="sd">- OutTimeExcds     : time exceeded</span>
+<span class="sd">- OutParmProbs     : wrong parameters</span>
+<span class="sd">- OutSrcQuenchs    : source quench</span>
+<span class="sd">- OutRedirects     : redirect</span>
+<span class="sd">- OutEchos         : echo request</span>
+<span class="sd">- OutEchoReps      : echo replies</span>
+<span class="sd">- OutTimestamps    : timestamp requests</span>
+<span class="sd">- OutTimestampReps : timestamp replies</span>
+<span class="sd">- OutAddrMasks     : address mask requests</span>
+<span class="sd">- OutAddrMaskReps  : address mask replies&#39;]</span>
+
+<span class="sd">Tcp:</span>
+<span class="sd">----</span>
+<span class="sd">- RtoAlgorithm : TCP retransmission timeout (RTO) algorithm</span>
+<span class="sd">- RtoMin       : RTO min</span>
+<span class="sd">- RtoMax       : RTO max</span>
+<span class="sd">- MaxConn      : Max connections</span>
+<span class="sd">- ActiveOpens  : active connections openings</span>
+<span class="sd">- PassiveOpens : passive connection openings</span>
+<span class="sd">- AttemptFails : failed connection attempts</span>
+<span class="sd">- EstabResets  : connection resets received</span>
+<span class="sd">- CurrEstab    : connections established</span>
+<span class="sd">- InSegs       : segments received</span>
+<span class="sd">- OutSegs      : segments send out</span>
+<span class="sd">- RetransSegs  : segments retransmited</span>
+<span class="sd">- InErrs       : bad segments received</span>
+<span class="sd">- OutRsts      : resets sent</span>
+
+<span class="sd">Udp:</span>
+<span class="sd">----</span>
+<span class="sd">- InDatagrams  : packets received</span>
+<span class="sd">- NoPorts      : packets to unknown port received</span>
+<span class="sd">- InErrors     : packet receive errors</span>
+<span class="sd">- OutDatagrams : packets sent</span>
+<span class="sd">- RcvbufErrors : receive buffer errors</span>
+<span class="sd">- SndbufErrors : send buffer errors</span>
+
+<span class="sd">Protocol counter names in /proc/net/netstat and their</span>
+<span class="sd">meanings (not an exhaustive list):</span>
+
+<span class="sd">Tcpext:</span>
+<span class="sd">-------</span>
+<span class="sd">- SyncookiesSent   : SYN cookies sent</span>
+<span class="sd">- SyncookiesRecv   : SYN cookies received</span>
+<span class="sd">- SyncookiesFailed : invalid SYN cookies received</span>
+<span class="sd">- EmbryonicRsts    : resets received for embryonic SYN_RECV sockets</span>
+<span class="sd">- PruneCalled      : pkts pruned from recv queue because of soc buf overrun</span>
+<span class="sd">- RcvPruned        : pkts pruned from receive queue</span>
+<span class="sd">- OfoPruned        : pkts dropped from out-of-order queue because of socket buffer overrun</span>
+<span class="sd">- OutOfWindowIcmps : ICMP pkts dropped because they were out-of-window</span>
+<span class="sd">- LockDroppedIcmps : ICMP packets dropped because socket was locked</span>
+<span class="sd">- TW               : TCP sockets finished time wait in fast timer</span>
+<span class="sd">- TWRecycled       : time wait sockets recycled by time stamp</span>
+<span class="sd">- TWKilled         : TCP sockets finished time wait in slow timer</span>
+<span class="sd">- PAWSPassive      : passive connections rejected because of time stamp</span>
+<span class="sd">- PAWSActive       : active connections rejected because of time stamp</span>
+<span class="sd">- PAWSEstab        : pkts rejects in estab connections because of timestamp</span>
+<span class="sd">- DelayedACKs               : delayed acks sent</span>
+<span class="sd">- DelayedACKLocked          : delayed acks further delayed because of locked socket</span>
+<span class="sd">- DelayedACKLost            : times quick ack mode was activated</span>
+<span class="sd">- ListenOverflows           : times the listen queue of a socket overflowed</span>
+<span class="sd">- ListenDrops               : SYNs to LISTEN sockets ignored</span>
+<span class="sd">- TCPPrequeued              : packets directly queued to recvmsg prequeue</span>
+<span class="sd">- TCPDirectCopyFromBacklog  : packets directly received from backlog</span>
+<span class="sd">- TCPDirectCopyFromPrequeue : packets directly received from prequeue</span>
+<span class="sd">- TCPPrequeueDropped        : packets dropped from prequeue</span>
+<span class="sd">- TCPHPHits                 : packets header predicted</span>
+<span class="sd">- TCPHPHitsToUser           : packets header predicted and directly queued to user</span>
+<span class="sd">- TCPPureAcks               : acknowledgments not containing data received</span>
+<span class="sd">- TCPLossFailures           : TCP data loss events</span>
+<span class="sd">- TCPTimeouts               : TCP timeout events</span>
+<span class="sd">- TCPDSACKOldSent           : DSACKs sent for old packets</span>
+<span class="sd">- TCPAbortOnData            : connections reset due to unexpected data</span>
+<span class="sd">- TCPAbortOnClose           : connections reset due to early user close</span>
+<span class="sd">- TCPAbortOnTimeout         : connections aborted due to timeout</span>
+
+<span class="sd">Ipext:</span>
+<span class="sd">------</span>
+<span class="sd">- InMcastPkts    : multicast packets received</span>
+<span class="sd">- OutMcastPkts   : multicast packets sent</span>
+<span class="sd">- InBcastPkts    : broadcast packets received</span>
+<span class="sd">- InOctets       : octets received</span>
+<span class="sd">- OutOctets      : octets sent</span>
+<span class="sd">- InMcastOctets  : multicast octets received</span>
+<span class="sd">- OutMcastOctets : multicast octets sent</span>
+<span class="sd">- InBcastOctets  : broadcast octets received</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">collectd</span>
+<span class="kn">import</span> <span class="nn">platform</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">socket</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">re</span>
+
+<span class="n">os_name</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span>
+<span class="n">host_name</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">gethostbyaddr</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">gethostname</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">host_types</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;app&#39;</span><span class="p">,</span> <span class="s">&#39;db&#39;</span><span class="p">,</span> <span class="s">&#39;ffx&#39;</span><span class="p">,</span> <span class="s">&#39;indexer&#39;</span><span class="p">,</span> <span class="s">&#39;search&#39;</span><span class="p">,</span> <span class="s">&#39;other&#39;</span><span class="p">]</span>
+<span class="n">host_type</span> <span class="o">=</span> <span class="s">&#39;other&#39;</span>
+
+<span class="n">SNMP_FNAME</span> <span class="o">=</span> <span class="s">&#39;/proc/net/snmp&#39;</span>
+<span class="n">NETSTAT_FNAME</span> <span class="o">=</span> <span class="s">&#39;/proc/net/netstat&#39;</span>
+
+<span class="n">METRIC_PLUGIN</span> <span class="o">=</span> <span class="s">&#39;netstats&#39;</span>
+<span class="n">METRIC_TYPE</span> <span class="o">=</span> <span class="s">&#39;gauge&#39;</span>
+
+<span class="n">white_list</span> <span class="o">=</span> <span class="p">[</span>
+              <span class="c"># Ip</span>
+              <span class="s">&#39;InReceives&#39;</span><span class="p">,</span>
+              <span class="s">&#39;InHdrErrors&#39;</span><span class="p">,</span>
+              <span class="s">&#39;ForwDatagrams&#39;</span><span class="p">,</span>
+              <span class="s">&#39;InDiscards&#39;</span><span class="p">,</span>
+              <span class="s">&#39;InDelivers&#39;</span><span class="p">,</span>
+              <span class="s">&#39;OutRequests&#39;</span><span class="p">,</span>
+              <span class="s">&#39;OutNoRoutes&#39;</span><span class="p">,</span>
+              <span class="s">&#39;ReasmReqds&#39;</span><span class="p">,</span>
+              <span class="s">&#39;ReasmOKs&#39;</span><span class="p">,</span>
+              <span class="s">&#39;ReasmFails&#39;</span><span class="p">,</span>
+              <span class="c"># Icmp</span>
+              <span class="s">&#39;InMsgs&#39;</span><span class="p">,</span>
+              <span class="s">&#39;InErrors&#39;</span><span class="p">,</span>
+              <span class="s">&#39;InDestUnreachs&#39;</span><span class="p">,</span>
+              <span class="s">&#39;InEchos&#39;</span><span class="p">,</span>
+              <span class="s">&#39;InTimestamps&#39;</span><span class="p">,</span>
+              <span class="s">&#39;InAddrMasks&#39;</span><span class="p">,</span>
+              <span class="s">&#39;OutMsgs&#39;</span><span class="p">,</span>
+              <span class="s">&#39;OutDestUnreachs&#39;</span><span class="p">,</span>
+              <span class="s">&#39;OutEchoReps&#39;</span><span class="p">,</span>
+              <span class="s">&#39;OutTimestampReps&#39;</span><span class="p">,</span>
+              <span class="c"># Tcp</span>
+              <span class="s">&#39;ActiveOpens&#39;</span><span class="p">,</span>
+              <span class="s">&#39;PassiveOpens&#39;</span><span class="p">,</span>
+              <span class="s">&#39;AttemptFails&#39;</span><span class="p">,</span>
+              <span class="s">&#39;EstabResets&#39;</span><span class="p">,</span>
+              <span class="s">&#39;CurrEstab&#39;</span><span class="p">,</span>
+              <span class="s">&#39;InSegs&#39;</span><span class="p">,</span>
+              <span class="s">&#39;OutSegs&#39;</span><span class="p">,</span>
+              <span class="s">&#39;RetransSegs&#39;</span><span class="p">,</span>
+              <span class="s">&#39;InErrs&#39;</span><span class="p">,</span>
+              <span class="s">&#39;OutRsts&#39;</span><span class="p">,</span>
+              <span class="c"># Udp</span>
+              <span class="s">&#39;InDatagrams&#39;</span><span class="p">,</span>
+              <span class="s">&#39;NoPorts&#39;</span><span class="p">,</span>
+              <span class="s">&#39;InErrors&#39;</span><span class="p">,</span>
+              <span class="s">&#39;OutDatagrams&#39;</span><span class="p">,</span>
+              <span class="s">&#39;RcvbufErrors&#39;</span><span class="p">,</span>
+              <span class="s">&#39;SndbufErrors&#39;</span><span class="p">,</span>
+              <span class="c"># Tcpext</span>
+              <span class="s">&#39;SyncookiesFailed&#39;</span><span class="p">,</span>
+              <span class="s">&#39;EmbryonicRsts&#39;</span><span class="p">,</span>
+              <span class="s">&#39;TW&#39;</span><span class="p">,</span>
+              <span class="s">&#39;DelayedACKs&#39;</span><span class="p">,</span>
+              <span class="s">&#39;DelayedACKLocked&#39;</span><span class="p">,</span>
+              <span class="s">&#39;DelayedACKLost&#39;</span><span class="p">,</span>
+              <span class="s">&#39;TCPPrequeued&#39;</span><span class="p">,</span>
+              <span class="s">&#39;TCPHPHits&#39;</span><span class="p">,</span>
+              <span class="s">&#39;TCPPureAcks&#39;</span><span class="p">,</span>
+              <span class="s">&#39;TCPHPAcks&#39;</span><span class="p">,</span>
+              <span class="s">&#39;TCPLossFailures&#39;</span><span class="p">,</span>
+              <span class="s">&#39;TCPTimeouts&#39;</span><span class="p">,</span>
+              <span class="s">&#39;TCPDSACKOldSent&#39;</span><span class="p">,</span>
+              <span class="s">&#39;TCPAbortOnData&#39;</span><span class="p">,</span>
+              <span class="s">&#39;TCPAbortOnClose&#39;</span><span class="p">,</span>
+              <span class="s">&#39;TCPAbortOnTimeout&#39;</span><span class="p">,</span>
+              <span class="c"># Ipext</span>
+              <span class="s">&#39;InMcastPkts&#39;</span><span class="p">,</span>
+              <span class="s">&#39;OutMcastPkts&#39;</span><span class="p">,</span>
+              <span class="s">&#39;InBcastPkts&#39;</span><span class="p">,</span>
+              <span class="s">&#39;InOctets&#39;</span><span class="p">,</span>
+              <span class="s">&#39;OutOctets&#39;</span><span class="p">,</span>
+              <span class="s">&#39;InMcastOctets&#39;</span><span class="p">,</span>
+              <span class="s">&#39;OutMcastOctets&#39;</span><span class="p">,</span>
+              <span class="s">&#39;InBcastOctets&#39;</span>
+              <span class="p">]</span>
+
+<span class="n">ip_list</span><span class="p">,</span> <span class="n">ip_vals</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+<span class="n">icmp_list</span><span class="p">,</span> <span class="n">icmp_vals</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+<span class="n">icmpmsg_list</span><span class="p">,</span> <span class="n">icmpmsg_vals</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+<span class="n">tcp_list</span><span class="p">,</span> <span class="n">tcp_vals</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+<span class="n">udp_list</span><span class="p">,</span> <span class="n">udp_vals</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+<span class="n">udplite_list</span><span class="p">,</span> <span class="n">updlite_vals</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+<span class="n">tcpext_list</span><span class="p">,</span> <span class="n">tcpext_vals</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+<span class="n">ipext_list</span><span class="p">,</span> <span class="n">ipext_vals</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+
+<span class="n">re_snmp</span><span class="o">=</span><span class="n">re</span><span class="o">.</span><span class="n">compile</span> <span class="p">(</span><span class="s">r&#39;^Ip:\s+(?P&lt;ip_labels&gt;.*)\n&#39;</span>
+                    <span class="s">r&#39;^Ip:\s+(?P&lt;ip_vals&gt;.*)\n&#39;</span>
+                    <span class="s">r&#39;^Icmp:\s+(?P&lt;icmp_labels&gt;.*)\n&#39;</span>
+                    <span class="s">r&#39;^Icmp:\s+(?P&lt;icmp_vals&gt;.*)\n&#39;</span>
+                    <span class="s">r&#39;^IcmpMsg:\s+(?P&lt;icmpmsg_labels&gt;.*)\n&#39;</span>
+                    <span class="s">r&#39;^IcmpMsg:\s+(?P&lt;icmpmsg_vals&gt;.*)\n&#39;</span>
+                    <span class="s">r&#39;^Tcp:\s+(?P&lt;tcp_labels&gt;.*)\n&#39;</span>
+                    <span class="s">r&#39;^Tcp:\s+(?P&lt;tcp_vals&gt;.*)\n&#39;</span>
+                    <span class="s">r&#39;^Udp:\s+(?P&lt;udp_labels&gt;.*)\n&#39;</span>
+                    <span class="s">r&#39;^Udp:\s+(?P&lt;udp_vals&gt;.*)\n&#39;</span>
+                    <span class="s">r&#39;^UdpLite:\s+(?P&lt;udplite_labels&gt;.*)\n&#39;</span>
+                    <span class="s">r&#39;^UdpLite:\s+(?P&lt;udplite_vals&gt;.*)\n&#39;</span>
+                    <span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">MULTILINE</span><span class="p">)</span>
+
+<span class="n">re_netstat</span><span class="o">=</span><span class="n">re</span><span class="o">.</span><span class="n">compile</span> <span class="p">(</span><span class="s">r&#39;^TcpExt:\s+(?P&lt;tcpext_labels&gt;.*)\n&#39;</span>
+                       <span class="s">r&#39;^TcpExt:\s+(?P&lt;tcpext_vals&gt;.*)\n&#39;</span>
+                       <span class="s">r&#39;^IpExt:\s+(?P&lt;ipext_labels&gt;.*)\n&#39;</span>
+                       <span class="s">r&#39;^IpExt:\s+(?P&lt;ipext_vals&gt;.*)\n&#39;</span>
+                       <span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">MULTILINE</span><span class="p">)</span>
+
+<div class="viewcode-block" id="get_host_type"><a class="viewcode-back" href="../netstats.html#netstats.get_host_type">[docs]</a><span class="k">def</span> <span class="nf">get_host_type</span><span class="p">():</span>
+   <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">host_types</span><span class="p">:</span>
+      <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">host_name</span><span class="p">:</span>
+         <span class="n">host_type</span> <span class="o">=</span> <span class="n">i</span>
+</div>
+<div class="viewcode-block" id="get_matches"><a class="viewcode-back" href="../netstats.html#netstats.get_matches">[docs]</a><span class="k">def</span> <span class="nf">get_matches</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="n">rex</span><span class="p">):</span>
+   <span class="n">match</span> <span class="o">=</span> <span class="bp">None</span>
+   <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">fname</span><span class="p">):</span>
+      <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fname</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+         <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">finditer</span><span class="p">(</span><span class="n">rex</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+      <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+   <span class="k">else</span><span class="p">:</span>
+      <span class="n">collectd</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;get_matches: path </span><span class="si">%s</span><span class="s"> does not exist&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">fname</span><span class="p">))</span>
+
+   <span class="k">return</span> <span class="n">match</span>
+</div>
+<div class="viewcode-block" id="init_snmp_counters_list"><a class="viewcode-back" href="../netstats.html#netstats.init_snmp_counters_list">[docs]</a><span class="k">def</span> <span class="nf">init_snmp_counters_list</span><span class="p">():</span>
+   <span class="k">global</span> <span class="n">ip_list</span><span class="p">,</span> <span class="n">icmp_list</span><span class="p">,</span> <span class="n">icmpmsg_list</span><span class="p">,</span> <span class="n">tcp_list</span><span class="p">,</span> <span class="n">udp_list</span><span class="p">,</span> <span class="n">udplite_list</span>
+   <span class="n">match</span> <span class="o">=</span> <span class="n">get_matches</span><span class="p">(</span><span class="n">SNMP_FNAME</span><span class="p">,</span> <span class="n">re_snmp</span><span class="p">)</span>
+   <span class="k">if</span> <span class="ow">not</span> <span class="n">match</span><span class="p">:</span>
+      <span class="k">print</span><span class="p">(</span><span class="s">&#39;init_snmp_white_list: snmp metrics not found&#39;</span><span class="p">)</span>
+      <span class="k">return</span>
+   <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">match</span><span class="p">:</span>
+      <span class="n">ip_list</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;ip_labels&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+      <span class="n">icmp_list</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;icmp_labels&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+      <span class="n">icmpmsg_list</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;icmpmsg_labels&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+      <span class="n">tcp_list</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;tcp_labels&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+      <span class="n">udp_list</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;udp_labels&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+      <span class="n">udplite_list</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;udplite_labels&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="init_netstat_counters_list"><a class="viewcode-back" href="../netstats.html#netstats.init_netstat_counters_list">[docs]</a><span class="k">def</span> <span class="nf">init_netstat_counters_list</span><span class="p">():</span>
+   <span class="k">global</span> <span class="n">tcpext_list</span><span class="p">,</span> <span class="n">ipext_list</span>
+   <span class="n">match</span> <span class="o">=</span> <span class="n">get_matches</span><span class="p">(</span><span class="n">NETSTAT_FNAME</span><span class="p">,</span> <span class="n">re_netstat</span><span class="p">)</span>
+   <span class="k">if</span> <span class="ow">not</span> <span class="n">match</span><span class="p">:</span>
+      <span class="k">print</span><span class="p">(</span><span class="s">&#39;init_netstat_white_list: netstat metrics not found&#39;</span><span class="p">)</span>
+      <span class="k">return</span>
+   <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">match</span><span class="p">:</span>
+      <span class="n">tcpext_list</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;tcpext_labels&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+      <span class="n">ipext_list</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;ipext_labels&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="init_counters_list"><a class="viewcode-back" href="../netstats.html#netstats.init_counters_list">[docs]</a><span class="k">def</span> <span class="nf">init_counters_list</span><span class="p">():</span>
+   <span class="n">init_snmp_counters_list</span><span class="p">()</span>
+   <span class="n">init_netstat_counters_list</span><span class="p">()</span>
+
+   <span class="c"># print list of found metrics at startup for debugging help</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;netstat: ip_list: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ip_list</span><span class="p">))</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;netstat: icmp_list: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">icmp_list</span><span class="p">))</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;netstat: icmpmsg_list: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">icmpmsg_list</span><span class="p">))</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;netstat: tcp_list: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">tcp_list</span><span class="p">))</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;netstat: udp_list: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">udp_list</span><span class="p">))</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;netstat: udplite_list: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">udplite_list</span><span class="p">))</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;netstat: tcpext_list: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">tcpext_list</span><span class="p">))</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;netstat: ipext_list: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ipext_list</span><span class="p">))</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;netstat: white_list: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">white_list</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="collect_netstats"><a class="viewcode-back" href="../netstats.html#netstats.collect_netstats">[docs]</a><span class="k">def</span> <span class="nf">collect_netstats</span><span class="p">():</span>
+   <span class="k">global</span> <span class="n">ip_vals</span><span class="p">,</span> <span class="n">icmp_vals</span><span class="p">,</span> <span class="n">icmpmsg_vals</span><span class="p">,</span> <span class="n">tcp_vals</span><span class="p">,</span> <span class="n">udp_vals</span><span class="p">,</span> <span class="n">udplite_vals</span>
+   <span class="k">global</span> <span class="n">tcpext_vals</span><span class="p">,</span> <span class="n">ipext_vals</span>
+   <span class="n">match_snmp</span> <span class="o">=</span> <span class="n">get_matches</span><span class="p">(</span><span class="n">SNMP_FNAME</span><span class="p">,</span> <span class="n">re_snmp</span><span class="p">)</span>
+   <span class="k">if</span> <span class="ow">not</span> <span class="n">match_snmp</span><span class="p">:</span>
+      <span class="n">collectd</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;collect_netstat: snmp metrics not found&#39;</span><span class="p">)</span>
+      <span class="k">return</span>
+   <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">match_snmp</span><span class="p">:</span>
+      <span class="n">ip_vals</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;ip_vals&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+      <span class="n">icmp_vals</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;icmp_vals&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+      <span class="n">icmpmsg_vals</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;icmpmsg_vals&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+      <span class="n">tcp_vals</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;tcp_vals&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+      <span class="n">udp_vals</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;udp_vals&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+      <span class="n">udplite_vals</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;udplite_vals&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+
+   <span class="n">match_netstat</span> <span class="o">=</span> <span class="n">get_matches</span><span class="p">(</span><span class="n">NETSTAT_FNAME</span><span class="p">,</span> <span class="n">re_netstat</span><span class="p">)</span>
+   <span class="k">if</span> <span class="ow">not</span> <span class="n">match_netstat</span><span class="p">:</span>
+      <span class="n">collectd</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&#39;collect_netstat: netstat metrics not found&#39;</span><span class="p">)</span>
+      <span class="k">return</span>
+   <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">match_netstat</span><span class="p">:</span>
+      <span class="n">tcpext_vals</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;tcpext_vals&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+      <span class="n">ipext_vals</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s">&#39;ipext_vals&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="dispatch_metrics"><a class="viewcode-back" href="../netstats.html#netstats.dispatch_metrics">[docs]</a><span class="k">def</span> <span class="nf">dispatch_metrics</span><span class="p">(</span><span class="n">proto</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">vals</span><span class="p">):</span>
+   <span class="n">metric</span> <span class="o">=</span> <span class="n">collectd</span><span class="o">.</span><span class="n">Values</span><span class="p">()</span>
+   <span class="n">metric</span><span class="o">.</span><span class="n">host</span> <span class="o">=</span> <span class="n">host_name</span>
+   <span class="n">metric</span><span class="o">.</span><span class="n">plugin</span> <span class="o">=</span> <span class="n">METRIC_PLUGIN</span>
+   <span class="n">metric</span><span class="o">.</span><span class="n">plugin_instance</span> <span class="o">=</span> <span class="n">proto</span>
+   <span class="n">metric</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="n">METRIC_TYPE</span>
+   <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">labels</span><span class="p">)):</span>
+      <span class="k">if</span> <span class="n">labels</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="ow">in</span> <span class="n">white_list</span><span class="p">:</span>
+         <span class="n">metric</span><span class="o">.</span><span class="n">type_instance</span> <span class="o">=</span> <span class="n">labels</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+         <span class="n">metric</span><span class="o">.</span><span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="n">vals</span><span class="p">[</span><span class="n">k</span><span class="p">]]</span>
+         <span class="n">metric</span><span class="o">.</span><span class="n">dispatch</span><span class="p">()</span>
+
+<span class="c">#=== Callback functions registered with collectd ===#</span></div>
+<div class="viewcode-block" id="configer"><a class="viewcode-back" href="../netstats.html#netstats.configer">[docs]</a><span class="k">def</span> <span class="nf">configer</span><span class="p">(</span><span class="n">ObjConfiguration</span><span class="p">):</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;netstats plugin: configuring host: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">host_name</span><span class="p">))</span> 
+</div>
+<div class="viewcode-block" id="initer"><a class="viewcode-back" href="../netstats.html#netstats.initer">[docs]</a><span class="k">def</span> <span class="nf">initer</span><span class="p">():</span>
+   <span class="n">get_host_type</span><span class="p">()</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;netstats plugin: host of type: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">host_type</span><span class="p">))</span>
+   <span class="n">init_counters_list</span><span class="p">()</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;netstats init: white list: </span><span class="si">%s</span><span class="s"> &#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">white_list</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="reader"><a class="viewcode-back" href="../netstats.html#netstats.reader">[docs]</a><span class="k">def</span> <span class="nf">reader</span><span class="p">(</span><span class="n">input_data</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+   <span class="n">collect_netstats</span><span class="p">()</span>
+
+   <span class="c"># dispatch metrics for each protocol seperately</span>
+   <span class="n">dispatch_metrics</span><span class="p">(</span><span class="s">&quot;ip&quot;</span><span class="p">,</span> <span class="n">ip_list</span><span class="p">,</span> <span class="n">ip_vals</span><span class="p">)</span>
+   <span class="n">dispatch_metrics</span><span class="p">(</span><span class="s">&quot;icmp&quot;</span><span class="p">,</span> <span class="n">icmp_list</span><span class="p">,</span> <span class="n">icmp_vals</span><span class="p">)</span>
+   <span class="n">dispatch_metrics</span><span class="p">(</span><span class="s">&quot;icmp&quot;</span><span class="p">,</span> <span class="n">icmpmsg_list</span><span class="p">,</span> <span class="n">icmpmsg_vals</span><span class="p">)</span>
+   <span class="n">dispatch_metrics</span><span class="p">(</span><span class="s">&quot;tcp&quot;</span><span class="p">,</span> <span class="n">tcp_list</span><span class="p">,</span> <span class="n">tcp_vals</span><span class="p">)</span>
+   <span class="n">dispatch_metrics</span><span class="p">(</span><span class="s">&quot;udp&quot;</span><span class="p">,</span> <span class="n">udp_list</span><span class="p">,</span> <span class="n">udp_vals</span><span class="p">)</span>
+   <span class="n">dispatch_metrics</span><span class="p">(</span><span class="s">&quot;updlite&quot;</span><span class="p">,</span> <span class="n">udplite_list</span><span class="p">,</span> <span class="n">udplite_vals</span><span class="p">)</span>
+   <span class="n">dispatch_metrics</span><span class="p">(</span><span class="s">&quot;tcpext&quot;</span><span class="p">,</span> <span class="n">tcpext_list</span><span class="p">,</span> <span class="n">tcpext_vals</span><span class="p">)</span>
+   <span class="n">dispatch_metrics</span><span class="p">(</span><span class="s">&quot;ipext&quot;</span><span class="p">,</span> <span class="n">ipext_list</span><span class="p">,</span> <span class="n">ipext_vals</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="writer"><a class="viewcode-back" href="../netstats.html#netstats.writer">[docs]</a><span class="k">def</span> <span class="nf">writer</span><span class="p">(</span><span class="n">metric</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+   <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">metric</span><span class="o">.</span><span class="n">values</span><span class="p">:</span>
+      <span class="n">collectd</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%s</span><span class="s"> (</span><span class="si">%s</span><span class="s">): </span><span class="si">%f</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">metric</span><span class="o">.</span><span class="n">plugin</span><span class="p">,</span> <span class="n">metric</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="shutdown"><a class="viewcode-back" href="../netstats.html#netstats.shutdown">[docs]</a><span class="k">def</span> <span class="nf">shutdown</span><span class="p">():</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;netstats plugin shutting down&quot;</span><span class="p">)</span>
+
+<span class="c">#== Callbacks ==#</span></div>
+<span class="k">if</span> <span class="p">(</span><span class="n">os_name</span> <span class="o">==</span> <span class="s">&#39;Linux&#39;</span><span class="p">):</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">register_config</span><span class="p">(</span><span class="n">configer</span><span class="p">)</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">register_init</span><span class="p">(</span><span class="n">initer</span><span class="p">)</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">register_read</span><span class="p">(</span><span class="n">reader</span><span class="p">)</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">register_write</span><span class="p">(</span><span class="n">writer</span><span class="p">)</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">register_shutdown</span><span class="p">(</span><span class="n">shutdown</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s">&#39;netstats plugin currently works for Linux only&#39;</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../index.html">LinuxTelemetry 1 documentation</a> &raquo;</li>
+          <li><a href="index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2016, Abdul Waheed.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

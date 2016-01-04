@@ -1,0 +1,469 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>diskstats &mdash; LinuxTelemetry 1 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="LinuxTelemetry 1 documentation" href="../index.html" />
+    <link rel="up" title="Module code" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../index.html">LinuxTelemetry 1 documentation</a> &raquo;</li>
+          <li><a href="index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for diskstats</h1><div class="highlight"><pre>
+<span class="c">#!/usr/bin/python</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">**diskstats.py**</span>
+
+<span class="sd">This plug-in reads /proc/diskstats and collects stats </span>
+<span class="sd">for a sub-set of devices, such as sda, sdb, ..., fio,</span>
+<span class="sd">md0, md1, md2, md3, etc. </span>
+
+<span class="sd">In addition to collecting raw stats, plugin can cache</span>
+<span class="sd">current value to determine time series derivatives (such as, iops, device</span>
+<span class="sd">utilization, etc.) at next collection interval.</span>
+
+<span class="sd">/proc/diskstats output shows one device stats per line and</span>
+<span class="sd">each line looks like this:</span>
+
+<span class="sd">252       1 dm-1 321244 0 12631594 480236 1104086 0 29567992 46637332 0 1841812 47117632</span>
+
+<span class="sd">Meaning of these lines is explained in linux kernel</span>
+<span class="sd">Documentation/iostat.txt (ignores first 3 fileds):</span>
+
+<span class="sd">- Field  1 -- # of reads completed</span>
+<span class="sd">    This is the total number of reads completed successfully.</span>
+
+<span class="sd">- Field  2 -- # of reads merged, field 6 -- # of writes merged</span>
+<span class="sd">    Reads and writes which are adjacent to each other may be merged for</span>
+<span class="sd">    efficiency.  Thus two 4K reads may become one 8K read before it is</span>
+<span class="sd">    ultimately handed to the disk, and so it will be counted (and queued)</span>
+<span class="sd">    as only one I/O.  This field lets you know how often this was done.</span>
+
+<span class="sd">- Field  3 -- # of sectors read</span>
+<span class="sd">    This is the total number of sectors read successfully.</span>
+
+<span class="sd">- Field  4 -- # of milliseconds spent reading</span>
+<span class="sd">    This is the total number of milliseconds spent by all reads (as</span>
+<span class="sd">    measured from __make_request() to end_that_request_last()).</span>
+
+<span class="sd">- Field  5 -- # of writes completed</span>
+<span class="sd">    This is the total number of writes completed successfully.</span>
+
+<span class="sd">- Field  7 -- # of sectors written</span>
+<span class="sd">    This is the total number of sectors written successfully.</span>
+
+<span class="sd">- Field  8 -- # of milliseconds spent writing</span>
+<span class="sd">    This is the total number of milliseconds spent by all writes (as</span>
+<span class="sd">    measured from __make_request() to end_that_request_last()).</span>
+
+<span class="sd">- Field  9 -- # of I/Os currently in progress</span>
+<span class="sd">    The only field that should go to zero. Incremented as requests are</span>
+<span class="sd">    given to appropriate struct request_queue and decremented as they finish.</span>
+
+<span class="sd">- Field 10 -- # of milliseconds spent doing I/Os</span>
+<span class="sd">    This field is increases so long as field 9 is nonzero.</span>
+
+<span class="sd">- Field 11 -- weighted # of milliseconds spent doing I/Os</span>
+<span class="sd">    This field is incremented at each I/O start, I/O completion, I/O</span>
+<span class="sd">    merge, or read of these stats by the number of I/Os in progress</span>
+<span class="sd">    (field 9) times the number of milliseconds spent doing I/O since the</span>
+<span class="sd">    last update of this field.  This can provide an easy measure of both</span>
+<span class="sd">    I/O completion time and the backlog that may be accumulating.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="kn">import</span> <span class="nn">collectd</span>
+<span class="kn">import</span> <span class="nn">platform</span>
+<span class="kn">import</span> <span class="nn">socket</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">re</span>
+
+<span class="c">### Globals ###</span>
+<span class="n">OS_NAME</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span>
+<span class="n">HOST_NAME</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">gethostbyaddr</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">gethostname</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span>
+
+<span class="n">DISKSTATS_FNAME</span> <span class="o">=</span> <span class="s">&#39;/proc/diskstats&#39;</span>
+
+<span class="n">METRIC_PLUGIN</span> <span class="o">=</span> <span class="s">&#39;diskstats&#39;</span>
+<span class="n">METRIC_TYPE</span> <span class="o">=</span> <span class="s">&#39;gauge&#39;</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">We want to limit the length of device list by ignoring</span>
+<span class="sd">sub-partitions when number of devices are beyond certian</span>
+<span class="sd">limit. We can also limit the number of devices by ignoring</span>
+<span class="sd">devices beyond certian limit, which is handy for supporting</span>
+<span class="sd">DB nodes with large number of logical units. </span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="n">DISKSTATS_DEV_TOO_MANY</span> <span class="o">=</span> <span class="mi">4</span>
+<span class="n">DISKSTATS_DEV_LIMIT</span>    <span class="o">=</span> <span class="mi">20</span>
+
+<span class="n">diskstat_fields</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;major&#39;</span><span class="p">,</span> <span class="s">&#39;minor&#39;</span><span class="p">,</span> <span class="s">&#39;device&#39;</span><span class="p">,</span> 
+                   <span class="s">&#39;reads_completed&#39;</span><span class="p">,</span> <span class="s">&#39;reads_merged&#39;</span><span class="p">,</span>
+                   <span class="s">&#39;sectors_read&#39;</span><span class="p">,</span> <span class="s">&#39;time_spent_reading_ms&#39;</span><span class="p">,</span>
+                   <span class="s">&#39;writes_completed&#39;</span><span class="p">,</span> <span class="s">&#39;writes_merged&#39;</span><span class="p">,</span>
+                   <span class="s">&#39;sectors_written&#39;</span><span class="p">,</span> <span class="s">&#39;time_spent_writing_ms&#39;</span><span class="p">,</span>
+                   <span class="s">&#39;inflight_ios&#39;</span><span class="p">,</span> <span class="s">&#39;io_time_ms&#39;</span><span class="p">,</span>
+                   <span class="s">&#39;weighted_time_spent_io&#39;</span><span class="p">]</span>
+<span class="n">diskstat_metrics</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;iops_read&#39;</span><span class="p">,</span> <span class="s">&#39;iops_write&#39;</span><span class="p">,</span> <span class="s">&#39;iops_rw&#39;</span><span class="p">,</span>
+                    <span class="s">&#39;bytes_ps_read&#39;</span><span class="p">,</span> <span class="s">&#39;bytes_ps_write&#39;</span><span class="p">,</span> <span class="s">&#39;bytes_ps_rw&#39;</span><span class="p">,</span>
+                    <span class="s">&#39;bytes_per_read&#39;</span><span class="p">,</span> <span class="s">&#39;bytes_per_write&#39;</span><span class="p">,</span> <span class="s">&#39;bytes_per_rw&#39;</span><span class="p">,</span>
+                    <span class="s">&#39;await_read&#39;</span><span class="p">,</span> <span class="s">&#39;await_write&#39;</span><span class="p">,</span> <span class="s">&#39;await_rw&#39;</span><span class="p">,</span>
+                    <span class="s">&#39;util_pct&#39;</span><span class="p">,</span> <span class="s">&#39;avgqu_sz&#39;</span><span class="p">,</span> <span class="s">&#39;svc_tm&#39;</span><span class="p">]</span>
+<span class="n">dev_list</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="c"># previous and current stats for derivative metrics</span>
+<span class="n">dev_stats_cache</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="n">dev_stats_current</span> <span class="o">=</span> <span class="p">{}</span>
+
+<span class="c"># we should get it from /sys/block/fioa/queue/pysical_block_size</span>
+<span class="n">dev_blk_sz</span> <span class="o">=</span> <span class="mi">512</span> 
+<span class="n">one_K</span> <span class="o">=</span> <span class="mi">1024</span>
+
+<div class="viewcode-block" id="get_dev_list"><a class="viewcode-back" href="../diskstats.html#diskstats.get_dev_list">[docs]</a><span class="k">def</span> <span class="nf">get_dev_list</span><span class="p">():</span>
+   <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">   This function determines a device list for this plugin monitoring.</span>
+
+<span class="sd">   There are a number of non-storage devices in /proc/diskstat output</span>
+<span class="sd">   that need to be skipped. These inclue loop, ram, and possibly </span>
+<span class="sd">   other devices and partitions. </span>
+
+<span class="sd">   In addition, we can decide whether to collect device partition</span>
+<span class="sd">   stats based on number of overall devices constand: DISKSTATS_DEV_TOO_MANY.</span>
+<span class="sd">   Also, it is possible to limit the overall number of devices and </span>
+<span class="sd">   partitions that need to be tracked using: DISKSTATS_DEV_LIMIT.</span>
+
+<span class="sd">   Args:</span>
+<span class="sd">        None</span>
+
+<span class="sd">   Returns:</span>
+<span class="sd">        Updated global dev_list</span>
+<span class="sd">   &quot;&quot;&quot;</span>
+   <span class="n">temp_dev_list</span> <span class="o">=</span> <span class="p">[]</span>
+   <span class="n">temp_dev_parts_list</span> <span class="o">=</span> <span class="p">[]</span>
+   <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">DISKSTATS_FNAME</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+      <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span><span class="p">:</span>
+         <span class="n">fields</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+         <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="n">fl</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">fl</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">]</span>
+         <span class="n">is_loop</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s">&#39;^loop&#39;</span><span class="p">,</span> <span class="n">fields</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+         <span class="n">is_ram</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s">&#39;^ram&#39;</span><span class="p">,</span> <span class="n">fields</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+         <span class="n">is_sr</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s">&#39;^sr&#39;</span><span class="p">,</span> <span class="n">fields</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+         <span class="n">is_disk_part</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s">&#39;(^[hs]d[a-z]+)([\d]+)&#39;</span><span class="p">,</span> <span class="n">fields</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+         <span class="k">if</span> <span class="p">(</span><span class="n">is_loop</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">is_ram</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">is_sr</span><span class="p">):</span>
+            <span class="k">continue</span>
+         <span class="k">if</span> <span class="p">(</span><span class="n">is_disk_part</span><span class="p">):</span>
+            <span class="n">temp_dev_parts_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fields</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+            <span class="k">continue</span>
+         <span class="k">else</span><span class="p">:</span>
+            <span class="n">temp_dev_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fields</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+            <span class="n">temp_dev_parts_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fields</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+      <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;diskstats get_dev_list: temp_dev_parts_list: --- </span><span class="si">%s</span><span class="se">\n</span><span class="s">&#39;</span> 
+                 <span class="o">%</span> <span class="p">(</span><span class="n">temp_dev_parts_list</span><span class="p">))</span>
+
+   <span class="c"># trim the final device list</span>
+   <span class="k">for</span> <span class="n">dev</span> <span class="ow">in</span> <span class="n">temp_dev_parts_list</span><span class="p">:</span>
+      <span class="n">is_disk_part</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s">&#39;(^[hs]d[a-z]+)([\d]+)&#39;</span><span class="p">,</span> <span class="n">dev</span><span class="p">)</span>
+
+      <span class="c"># include partitions if overall devices not too many</span>
+      <span class="k">if</span> <span class="p">(</span><span class="n">is_disk_part</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">temp_dev_list</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">DISKSTATS_DEV_TOO_MANY</span><span class="p">):</span>
+         <span class="k">continue</span>
+
+      <span class="c"># if number of devices and partitions above limit, skip the rest</span>
+      <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">dev_list</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">DISKSTATS_DEV_LIMIT</span><span class="p">):</span>
+         <span class="k">break</span>
+
+      <span class="n">dev_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dev</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="init_dev_stats_cache"><a class="viewcode-back" href="../diskstats.html#diskstats.init_dev_stats_cache">[docs]</a><span class="k">def</span> <span class="nf">init_dev_stats_cache</span><span class="p">():</span>
+   <span class="k">global</span> <span class="n">dev_stats_cache</span>
+   <span class="n">dev_stats_cache</span> <span class="o">=</span> <span class="n">collect_diskstats</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="collect_diskstats"><a class="viewcode-back" href="../diskstats.html#diskstats.collect_diskstats">[docs]</a><span class="k">def</span> <span class="nf">collect_diskstats</span><span class="p">():</span>
+   <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">   Collectd statistics for devices in global dev_list from /proc/diskstats</span>
+
+<span class="sd">   Args: None</span>
+
+<span class="sd">   Returns: A dictionary collection of device specific raw statistics that</span>
+<span class="sd">            includes timestamps</span>
+<span class="sd">   &quot;&quot;&quot;</span>
+   <span class="n">device_stats</span> <span class="o">=</span> <span class="p">{}</span>
+   <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">DISKSTATS_FNAME</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+      <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span><span class="p">:</span>
+         <span class="n">fields</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+         <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="n">fl</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">fl</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">]</span>
+         <span class="n">dev_name</span> <span class="o">=</span> <span class="n">fields</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+         <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">dev_name</span> <span class="ow">in</span> <span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">dev_list</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">14</span><span class="p">):</span>
+                <span class="n">device_stats</span><span class="p">[(</span><span class="n">dev_name</span><span class="p">,</span> <span class="n">diskstat_fields</span><span class="p">[</span><span class="n">i</span><span class="p">])]</span> <span class="o">=</span> <span class="n">fields</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">device_stats</span><span class="p">[(</span><span class="n">dev_name</span><span class="p">,</span> <span class="s">&#39;ts&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+      <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+      <span class="k">return</span> <span class="n">device_stats</span>
+</div>
+<div class="viewcode-block" id="swap_current_cache"><a class="viewcode-back" href="../diskstats.html#diskstats.swap_current_cache">[docs]</a><span class="k">def</span> <span class="nf">swap_current_cache</span><span class="p">():</span>
+   <span class="k">global</span> <span class="n">dev_stats_cache</span>
+   <span class="n">dev_stats_cache</span> <span class="o">=</span> <span class="n">dev_stats_current</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="calc_del_t"><a class="viewcode-back" href="../diskstats.html#diskstats.calc_del_t">[docs]</a><span class="k">def</span> <span class="nf">calc_del_t</span><span class="p">(</span><span class="n">dev</span><span class="p">):</span>
+   <span class="n">cur_t</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">dev_stats_current</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;ts&#39;</span><span class="p">)])</span>
+   <span class="n">pre_t</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">dev_stats_cache</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;ts&#39;</span><span class="p">)])</span>
+   <span class="n">del_t</span> <span class="o">=</span> <span class="n">cur_t</span> <span class="o">-</span> <span class="n">pre_t</span>
+   <span class="k">return</span> <span class="n">del_t</span>
+</div>
+<div class="viewcode-block" id="calc_metrics"><a class="viewcode-back" href="../diskstats.html#diskstats.calc_metrics">[docs]</a><span class="k">def</span> <span class="nf">calc_metrics</span><span class="p">(</span><span class="n">dev</span><span class="p">):</span>
+   <span class="c"># time_delta is in seconds</span>
+   <span class="n">time_delta</span> <span class="o">=</span> <span class="n">calc_del_t</span><span class="p">(</span><span class="n">dev</span><span class="p">)</span>
+
+   <span class="c"># multiple read or write requests that are merged to</span>
+   <span class="c"># become single read/write request to device</span>
+   <span class="n">cur_rrq</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">dev_stats_current</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;reads_merged&#39;</span><span class="p">)])</span>
+   <span class="n">pre_rrq</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">dev_stats_cache</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;reads_merged&#39;</span><span class="p">)])</span>
+   <span class="n">cur_wrq</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">dev_stats_current</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;writes_merged&#39;</span><span class="p">)])</span>
+   <span class="n">pre_wrq</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">dev_stats_cache</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;writes_merged&#39;</span><span class="p">)])</span>
+
+   <span class="c"># read and write operation that actually complete</span>
+   <span class="n">cur_r</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">dev_stats_current</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;reads_completed&#39;</span><span class="p">)])</span>
+   <span class="n">pre_r</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">dev_stats_cache</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;reads_completed&#39;</span><span class="p">)])</span>
+   <span class="n">cur_w</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">dev_stats_current</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;writes_completed&#39;</span><span class="p">)])</span>
+   <span class="n">pre_w</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">dev_stats_cache</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;writes_completed&#39;</span><span class="p">)])</span>
+
+   <span class="c"># read and write blocks</span>
+   <span class="n">cur_sec_r</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">dev_stats_current</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;sectors_read&#39;</span><span class="p">)])</span>
+   <span class="n">pre_sec_r</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">dev_stats_cache</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;sectors_read&#39;</span><span class="p">)])</span>
+   <span class="n">cur_sec_w</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">dev_stats_current</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;sectors_written&#39;</span><span class="p">)])</span>
+   <span class="n">pre_sec_w</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">dev_stats_cache</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;sectors_written&#39;</span><span class="p">)])</span>
+
+   <span class="c"># read and write times in msec. These are 32-bit counters and</span>
+   <span class="c"># monotonically increase except on overflow, when they restart </span>
+   <span class="c"># from zero.</span>
+   <span class="n">cur_t_r</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">dev_stats_current</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;time_spent_reading_ms&#39;</span><span class="p">)])</span>
+   <span class="n">pre_t_r</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">dev_stats_cache</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;time_spent_reading_ms&#39;</span><span class="p">)])</span>
+   <span class="n">cur_t_w</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">dev_stats_current</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;time_spent_writing_ms&#39;</span><span class="p">)])</span>
+   <span class="n">pre_t_w</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">dev_stats_cache</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;time_spent_writing_ms&#39;</span><span class="p">)])</span>
+
+   <span class="c"># note that io_time_ms is NOT equal to time_spent_reading + </span>
+   <span class="c"># time_spent_writing.</span>
+   <span class="c"># io_time_ms measures the time device is in use</span>
+   <span class="n">cur_t_io</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">dev_stats_current</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;io_time_ms&#39;</span><span class="p">)])</span>
+   <span class="n">pre_t_io</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">dev_stats_cache</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;io_time_ms&#39;</span><span class="p">)])</span>
+
+   <span class="c"># weighted io times for calculating backlog.</span>
+   <span class="c"># Will go to zero on 32-bit counter overflow.</span>
+   <span class="n">cur_t_rq</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">dev_stats_current</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;weighted_time_spent_io&#39;</span><span class="p">)])</span>
+   <span class="n">pre_t_rq</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">dev_stats_cache</span><span class="p">[(</span><span class="n">dev</span><span class="p">,</span> <span class="s">&#39;weighted_time_spent_io&#39;</span><span class="p">)])</span>
+
+   <span class="c"># number of reads and writes</span>
+   <span class="n">nr_r</span> <span class="o">=</span> <span class="n">cur_r</span> <span class="o">-</span> <span class="n">pre_r</span>
+   <span class="n">nr_w</span> <span class="o">=</span> <span class="n">cur_w</span> <span class="o">-</span> <span class="n">pre_w</span>
+   <span class="n">nr_rw</span> <span class="o">=</span> <span class="n">nr_r</span> <span class="o">+</span> <span class="n">nr_w</span> 
+
+   <span class="c"># number of sectors read and written</span>
+   <span class="n">nr_sec_r</span> <span class="o">=</span> <span class="n">cur_sec_r</span> <span class="o">-</span> <span class="n">pre_sec_r</span>
+   <span class="n">nr_sec_w</span> <span class="o">=</span> <span class="n">cur_sec_w</span> <span class="o">-</span> <span class="n">pre_sec_w</span>
+   <span class="n">nr_sec_rw</span> <span class="o">=</span> <span class="n">nr_sec_r</span> <span class="o">+</span> <span class="n">nr_sec_w</span>
+
+   <span class="c"># read and write times in seconds</span>
+   <span class="n">t_r</span> <span class="o">=</span> <span class="p">(</span><span class="n">cur_t_r</span> <span class="o">-</span> <span class="n">pre_t_r</span><span class="p">)</span><span class="o">/</span><span class="mf">1000.0</span>
+   <span class="n">t_w</span> <span class="o">=</span> <span class="p">(</span><span class="n">cur_t_w</span> <span class="o">-</span> <span class="n">pre_t_w</span><span class="p">)</span><span class="o">/</span><span class="mf">1000.0</span>
+   <span class="n">t_rw</span> <span class="o">=</span> <span class="n">t_r</span> <span class="o">+</span> <span class="n">t_w</span>
+   <span class="n">t_io</span> <span class="o">=</span> <span class="p">(</span><span class="n">cur_t_io</span> <span class="o">-</span> <span class="n">pre_t_io</span><span class="p">)</span><span class="o">/</span><span class="mf">1000.0</span>
+   <span class="n">t_rq</span> <span class="o">=</span> <span class="p">(</span><span class="n">cur_t_rq</span> <span class="o">-</span> <span class="n">pre_t_rq</span><span class="p">)</span><span class="o">/</span><span class="mf">1000.0</span>
+
+   <span class="c"># iops</span>
+   <span class="n">iops_r</span> <span class="o">=</span> <span class="n">nr_r</span><span class="o">/</span><span class="n">time_delta</span> <span class="k">if</span> <span class="p">(</span><span class="n">nr_r</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">time_delta</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">)</span> <span class="k">else</span> <span class="bp">None</span>
+   <span class="n">iops_w</span> <span class="o">=</span> <span class="n">nr_w</span><span class="o">/</span><span class="n">time_delta</span> <span class="k">if</span> <span class="p">(</span><span class="n">nr_w</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">time_delta</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">)</span> <span class="k">else</span> <span class="bp">None</span>
+   <span class="k">try</span><span class="p">:</span>
+      <span class="n">iops</span> <span class="o">=</span> <span class="n">iops_r</span> <span class="o">+</span> <span class="n">iops_w</span>
+   <span class="k">except</span><span class="p">:</span>
+      <span class="n">iops</span> <span class="o">=</span> <span class="bp">None</span>
+
+   <span class="c"># read/write bytes/second</span>
+   <span class="n">bps_r</span> <span class="o">=</span> <span class="p">(</span><span class="n">nr_sec_r</span><span class="o">/</span><span class="n">time_delta</span><span class="p">)</span><span class="o">*</span><span class="n">dev_blk_sz</span> <span class="k">if</span> <span class="p">(</span><span class="n">nr_sec_r</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> 
+                                                <span class="n">time_delta</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">)</span> <span class="k">else</span> <span class="bp">None</span>
+   <span class="n">bps_w</span> <span class="o">=</span> <span class="p">(</span><span class="n">nr_sec_w</span><span class="o">/</span><span class="n">time_delta</span><span class="p">)</span><span class="o">*</span><span class="n">dev_blk_sz</span> <span class="k">if</span> <span class="p">(</span><span class="n">nr_sec_w</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> 
+                                                <span class="n">time_delta</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">)</span> <span class="k">else</span> <span class="bp">None</span>
+   <span class="k">try</span><span class="p">:</span>
+      <span class="n">bps</span> <span class="o">=</span> <span class="n">bps_r</span> <span class="o">+</span> <span class="n">bps_w</span>
+   <span class="k">except</span><span class="p">:</span>
+      <span class="n">bps</span> <span class="o">=</span> <span class="bp">None</span>
+
+   <span class="c"># request sizes in bytes per read, write, and all operations</span>
+   <span class="n">sz_r</span> <span class="o">=</span> <span class="p">(</span><span class="n">nr_sec_r</span> <span class="o">*</span> <span class="n">dev_blk_sz</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">nr_r</span><span class="p">)</span> <span class="k">if</span> <span class="p">(</span><span class="n">nr_sec_r</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> 
+                                             <span class="n">nr_r</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="k">else</span> <span class="bp">None</span>
+   <span class="n">sz_w</span> <span class="o">=</span> <span class="p">(</span><span class="n">nr_sec_w</span> <span class="o">*</span> <span class="n">dev_blk_sz</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">nr_w</span><span class="p">)</span> <span class="k">if</span> <span class="p">(</span><span class="n">nr_sec_w</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> 
+                                             <span class="n">nr_w</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="k">else</span> <span class="bp">None</span>
+   <span class="n">sz</span> <span class="o">=</span> <span class="p">(</span><span class="n">nr_sec_rw</span> <span class="o">*</span> <span class="n">dev_blk_sz</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">nr_rw</span><span class="p">)</span> <span class="k">if</span> <span class="p">(</span><span class="n">nr_sec_rw</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> 
+                                             <span class="n">nr_rw</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="k">else</span> <span class="bp">None</span>
+
+   <span class="c"># average time for read and write operations</span>
+   <span class="n">await_r</span> <span class="o">=</span> <span class="n">t_r</span><span class="o">/</span><span class="n">nr_r</span> <span class="k">if</span> <span class="p">(</span><span class="n">t_r</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">nr_r</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="k">else</span> <span class="bp">None</span>
+   <span class="n">await_w</span> <span class="o">=</span> <span class="n">t_w</span><span class="o">/</span><span class="n">nr_w</span> <span class="k">if</span> <span class="p">(</span><span class="n">t_w</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">nr_w</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="k">else</span> <span class="bp">None</span>
+   <span class="n">await_rw</span> <span class="o">=</span> <span class="n">t_rw</span><span class="o">/</span><span class="n">nr_rw</span> <span class="k">if</span> <span class="p">(</span><span class="n">t_rw</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">nr_rw</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="k">else</span> <span class="bp">None</span>
+
+   <span class="c"># dev utilization as % using ratio of time dev busy in msec to</span>
+   <span class="c"># total observation interval in seconds</span>
+   <span class="n">util</span> <span class="o">=</span> <span class="n">t_io</span><span class="o">/</span><span class="n">time_delta</span> <span class="k">if</span> <span class="p">(</span><span class="n">t_io</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">time_delta</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">)</span> <span class="k">else</span> <span class="bp">None</span>
+   <span class="k">try</span><span class="p">:</span>
+      <span class="n">util_pct</span> <span class="o">=</span> <span class="n">util</span> <span class="o">*</span> <span class="mf">100.0</span>
+   <span class="k">except</span><span class="p">:</span>
+      <span class="n">util_pct</span> <span class="o">=</span> <span class="bp">None</span>
+   
+   <span class="c"># average queue size = arrival_rate * avg_wait_time (little&#39;s law)</span>
+   <span class="n">avgqu_sz</span> <span class="o">=</span> <span class="n">t_rq</span><span class="o">/</span><span class="n">time_delta</span> <span class="k">if</span> <span class="p">(</span><span class="n">t_rq</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">time_delta</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">)</span> <span class="k">else</span> <span class="bp">None</span>
+   
+   <span class="c"># average service time using utilization law</span>
+   <span class="c"># util = busy_time/total_time = B/T</span>
+   <span class="c">#      = (Completions/Completions) * (B/T)</span>
+   <span class="c">#      = (C/T)* (B/C)</span>
+   <span class="c">#      = throughput * service_time</span>
+   <span class="k">try</span><span class="p">:</span>
+      <span class="n">svc_tm</span> <span class="o">=</span> <span class="n">util</span><span class="o">/</span><span class="n">iops</span> <span class="k">if</span> <span class="p">(</span><span class="n">util</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">iops</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">)</span> <span class="k">else</span> <span class="bp">None</span>
+   <span class="k">except</span><span class="p">:</span>
+      <span class="n">svc_tm</span> <span class="o">=</span> <span class="bp">None</span>
+
+   <span class="c"># return as a key-value dictionary:</span>
+   <span class="c"># [&#39;iops_read&#39;:iops_r, &#39;iops_write&#39;:iops_w, ... ]</span>
+   <span class="n">m</span> <span class="o">=</span> <span class="p">[</span><span class="n">iops_r</span><span class="p">,</span> <span class="n">iops_w</span><span class="p">,</span> <span class="n">iops</span><span class="p">,</span> <span class="n">bps_r</span><span class="p">,</span> <span class="n">bps_w</span><span class="p">,</span> <span class="n">bps</span><span class="p">,</span> <span class="n">sz_r</span><span class="p">,</span> <span class="n">sz_w</span><span class="p">,</span> <span class="n">sz</span><span class="p">,</span>
+        <span class="n">await_r</span><span class="p">,</span> <span class="n">await_w</span><span class="p">,</span> <span class="n">await_rw</span><span class="p">,</span> <span class="n">util_pct</span><span class="p">,</span> <span class="n">avgqu_sz</span><span class="p">,</span> <span class="n">svc_tm</span><span class="p">]</span>  
+   <span class="n">diskst</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">diskstat_metrics</span><span class="p">,</span> <span class="n">m</span><span class="p">))</span>
+   <span class="k">return</span> <span class="n">diskst</span>
+</div>
+<div class="viewcode-block" id="dispatch_metrics"><a class="viewcode-back" href="../diskstats.html#diskstats.dispatch_metrics">[docs]</a><span class="k">def</span> <span class="nf">dispatch_metrics</span><span class="p">(</span><span class="n">dev_name</span><span class="p">,</span> <span class="n">keys</span><span class="p">,</span> <span class="n">vals</span><span class="p">):</span>
+   <span class="n">metric</span> <span class="o">=</span> <span class="n">collectd</span><span class="o">.</span><span class="n">Values</span><span class="p">()</span>
+   <span class="n">metric</span><span class="o">.</span><span class="n">host</span> <span class="o">=</span> <span class="n">HOST_NAME</span>
+   <span class="n">metric</span><span class="o">.</span><span class="n">plugin</span> <span class="o">=</span> <span class="n">METRIC_PLUGIN</span>
+   <span class="n">metric</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="n">METRIC_TYPE</span>
+   <span class="n">metric</span><span class="o">.</span><span class="n">plugin_instance</span> <span class="o">=</span> <span class="n">dev_name</span>
+
+   <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)):</span>
+      <span class="k">if</span> <span class="n">vals</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+         <span class="n">metric</span><span class="o">.</span><span class="n">type_instance</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+         <span class="n">metric</span><span class="o">.</span><span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="n">vals</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+         <span class="n">metric</span><span class="o">.</span><span class="n">dispatch</span><span class="p">()</span>
+
+<span class="c">#=== Callback functions registered with collectd ===#</span></div>
+<div class="viewcode-block" id="configer"><a class="viewcode-back" href="../diskstats.html#diskstats.configer">[docs]</a><span class="k">def</span> <span class="nf">configer</span><span class="p">(</span><span class="n">ObjConfiguration</span><span class="p">):</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;diskstat plugin: configuring host: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">HOST_NAME</span><span class="p">))</span> 
+</div>
+<div class="viewcode-block" id="initer"><a class="viewcode-back" href="../diskstats.html#diskstats.initer">[docs]</a><span class="k">def</span> <span class="nf">initer</span><span class="p">():</span>
+   <span class="n">get_dev_list</span><span class="p">()</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;diskstat initer: dev list: </span><span class="si">%s</span><span class="s"> &#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">dev_list</span><span class="p">))</span>
+   <span class="n">init_dev_stats_cache</span><span class="p">()</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;diskstat init: dev_stats_cache: </span><span class="si">%s</span><span class="s"> &#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">dev_stats_cache</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="reader"><a class="viewcode-back" href="../diskstats.html#diskstats.reader">[docs]</a><span class="k">def</span> <span class="nf">reader</span><span class="p">(</span><span class="n">input_data</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+   <span class="k">global</span> <span class="n">dev_stats_current</span>
+   <span class="n">dev_stats_current</span> <span class="o">=</span> <span class="n">collect_diskstats</span><span class="p">()</span>
+   <span class="n">raw_dev_stats_names</span> <span class="o">=</span> <span class="n">diskstat_fields</span><span class="p">[</span><span class="mi">3</span><span class="p">:</span><span class="mi">14</span><span class="p">]</span>
+
+   <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dev_list</span><span class="p">:</span>
+      <span class="n">raw_dev_stats_vals</span> <span class="o">=</span> <span class="p">[</span><span class="n">dev_stats_current</span><span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">k</span><span class="p">)]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> 
+                            <span class="n">raw_dev_stats_names</span><span class="p">]</span>
+      <span class="n">dispatch_metrics</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">raw_dev_stats_names</span><span class="p">,</span> <span class="n">raw_dev_stats_vals</span><span class="p">)</span>
+      <span class="n">metrics_key_vals</span> <span class="o">=</span> <span class="n">calc_metrics</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+      <span class="n">dispatch_metrics</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">metrics_key_vals</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">metrics_key_vals</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+
+   <span class="n">swap_current_cache</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="writer"><a class="viewcode-back" href="../diskstats.html#diskstats.writer">[docs]</a><span class="k">def</span> <span class="nf">writer</span><span class="p">(</span><span class="n">metric</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+   <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">metric</span><span class="o">.</span><span class="n">values</span><span class="p">:</span>
+      <span class="n">collectd</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%s</span><span class="s"> (</span><span class="si">%s</span><span class="s">): </span><span class="si">%f</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">metric</span><span class="o">.</span><span class="n">plugin</span><span class="p">,</span> <span class="n">metric</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="shutdown"><a class="viewcode-back" href="../diskstats.html#diskstats.shutdown">[docs]</a><span class="k">def</span> <span class="nf">shutdown</span><span class="p">():</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;diskstat plugin shutting down&quot;</span><span class="p">)</span>
+
+<span class="c">#== Callbacks ==#</span></div>
+<span class="k">if</span> <span class="p">(</span><span class="n">OS_NAME</span> <span class="o">==</span> <span class="s">&#39;Linux&#39;</span><span class="p">):</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">register_config</span><span class="p">(</span><span class="n">configer</span><span class="p">)</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">register_init</span><span class="p">(</span><span class="n">initer</span><span class="p">)</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">register_read</span><span class="p">(</span><span class="n">reader</span><span class="p">)</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">register_write</span><span class="p">(</span><span class="n">writer</span><span class="p">)</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">register_shutdown</span><span class="p">(</span><span class="n">shutdown</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+   <span class="n">collectd</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s">&#39;diskstat plugin currently works for Linux only&#39;</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../index.html">LinuxTelemetry 1 documentation</a> &raquo;</li>
+          <li><a href="index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2016, Abdul Waheed.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

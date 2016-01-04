@@ -1,0 +1,330 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>netstats Module &mdash; LinuxTelemetry 1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="LinuxTelemetry 1 documentation" href="index.html" />
+    <link rel="next" title="vmstats Module" href="vmstats.html" />
+    <link rel="prev" title="fusionio Module" href="fusionio.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="vmstats.html" title="vmstats Module"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="fusionio.html" title="fusionio Module"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">LinuxTelemetry 1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-netstats">
+<span id="netstats-module"></span><h1>netstats Module<a class="headerlink" href="#module-netstats" title="Permalink to this headline">¶</a></h1>
+<p><strong>netstats.py</strong></p>
+<p>This plugin exposes linux network protocol counters 
+that are available through /proc/net/snmp and 
+/proc/net/netstat. These protocol counters are typically
+examined through netstat (such as, &#8216;netstat -s&#8217; command),
+which is part of net-tools. While this plugin reads all
+available counters, it publishes only a sub-set of them,
+which are listed in white_list.</p>
+<p>Protocol counter names in /proc/net/snmp and their
+meanings:</p>
+<div class="section" id="ip">
+<h2>Ip:<a class="headerlink" href="#ip" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li>InReceives   : total packets received</li>
+<li>InHdrErrors  : packets received with invalid addresses</li>
+<li>ForwDatagrams: forwarded</li>
+<li>InDiscards   : incoming packets discarded</li>
+<li>InDelivers   : incoming packets delivered</li>
+<li>OutRequests  : requests sent out</li>
+<li>OutNoRoutes  : fragments dropped_after timeout</li>
+<li>ReasmReqds   : reassemblies required</li>
+<li>ReasmOKs     : packets reassembled ok</li>
+<li>ReasmFails   : packet reassembles failed</li>
+</ul>
+</div>
+<div class="section" id="icmp">
+<h2>Icmp:<a class="headerlink" href="#icmp" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li>InMsgs           : ICMP messages received</li>
+<li>InErrors         : input ICMP message failed</li>
+<li>InDestUnreachs   : destination unreachable</li>
+<li>InTimeExcds      : timeout in transit</li>
+<li>InParmProbs      : wrong parameters&#8217;</li>
+<li>InSrcQuenchs     : source quenches</li>
+<li>InRedirects      : redirects</li>
+<li>InEchos          : echo requests</li>
+<li>InEchoReps       : echo replies</li>
+<li>InTimestamps     : timestamp request</li>
+<li>InTimestampReps  : timestamp reply</li>
+<li>InAddrMasks      : address mask request</li>
+<li>InAddrMaskReps   : address mask replies</li>
+<li>OutMsgs          : ICMP messages sent</li>
+<li>OutErrors        : ICMP messages failed</li>
+<li>OutDestUnreachs  : destination unreachable</li>
+<li>OutTimeExcds     : time exceeded</li>
+<li>OutParmProbs     : wrong parameters</li>
+<li>OutSrcQuenchs    : source quench</li>
+<li>OutRedirects     : redirect</li>
+<li>OutEchos         : echo request</li>
+<li>OutEchoReps      : echo replies</li>
+<li>OutTimestamps    : timestamp requests</li>
+<li>OutTimestampReps : timestamp replies</li>
+<li>OutAddrMasks     : address mask requests</li>
+<li>OutAddrMaskReps  : address mask replies&#8217;]</li>
+</ul>
+</div>
+<div class="section" id="tcp">
+<h2>Tcp:<a class="headerlink" href="#tcp" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li>RtoAlgorithm : TCP retransmission timeout (RTO) algorithm</li>
+<li>RtoMin       : RTO min</li>
+<li>RtoMax       : RTO max</li>
+<li>MaxConn      : Max connections</li>
+<li>ActiveOpens  : active connections openings</li>
+<li>PassiveOpens : passive connection openings</li>
+<li>AttemptFails : failed connection attempts</li>
+<li>EstabResets  : connection resets received</li>
+<li>CurrEstab    : connections established</li>
+<li>InSegs       : segments received</li>
+<li>OutSegs      : segments send out</li>
+<li>RetransSegs  : segments retransmited</li>
+<li>InErrs       : bad segments received</li>
+<li>OutRsts      : resets sent</li>
+</ul>
+</div>
+<div class="section" id="udp">
+<h2>Udp:<a class="headerlink" href="#udp" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li>InDatagrams  : packets received</li>
+<li>NoPorts      : packets to unknown port received</li>
+<li>InErrors     : packet receive errors</li>
+<li>OutDatagrams : packets sent</li>
+<li>RcvbufErrors : receive buffer errors</li>
+<li>SndbufErrors : send buffer errors</li>
+</ul>
+<p>Protocol counter names in /proc/net/netstat and their
+meanings (not an exhaustive list):</p>
+</div>
+<div class="section" id="tcpext">
+<h2>Tcpext:<a class="headerlink" href="#tcpext" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li>SyncookiesSent   : SYN cookies sent</li>
+<li>SyncookiesRecv   : SYN cookies received</li>
+<li>SyncookiesFailed : invalid SYN cookies received</li>
+<li>EmbryonicRsts    : resets received for embryonic SYN_RECV sockets</li>
+<li>PruneCalled      : pkts pruned from recv queue because of soc buf overrun</li>
+<li>RcvPruned        : pkts pruned from receive queue</li>
+<li>OfoPruned        : pkts dropped from out-of-order queue because of socket buffer overrun</li>
+<li>OutOfWindowIcmps : ICMP pkts dropped because they were out-of-window</li>
+<li>LockDroppedIcmps : ICMP packets dropped because socket was locked</li>
+<li>TW               : TCP sockets finished time wait in fast timer</li>
+<li>TWRecycled       : time wait sockets recycled by time stamp</li>
+<li>TWKilled         : TCP sockets finished time wait in slow timer</li>
+<li>PAWSPassive      : passive connections rejected because of time stamp</li>
+<li>PAWSActive       : active connections rejected because of time stamp</li>
+<li>PAWSEstab        : pkts rejects in estab connections because of timestamp</li>
+<li>DelayedACKs               : delayed acks sent</li>
+<li>DelayedACKLocked          : delayed acks further delayed because of locked socket</li>
+<li>DelayedACKLost            : times quick ack mode was activated</li>
+<li>ListenOverflows           : times the listen queue of a socket overflowed</li>
+<li>ListenDrops               : SYNs to LISTEN sockets ignored</li>
+<li>TCPPrequeued              : packets directly queued to recvmsg prequeue</li>
+<li>TCPDirectCopyFromBacklog  : packets directly received from backlog</li>
+<li>TCPDirectCopyFromPrequeue : packets directly received from prequeue</li>
+<li>TCPPrequeueDropped        : packets dropped from prequeue</li>
+<li>TCPHPHits                 : packets header predicted</li>
+<li>TCPHPHitsToUser           : packets header predicted and directly queued to user</li>
+<li>TCPPureAcks               : acknowledgments not containing data received</li>
+<li>TCPLossFailures           : TCP data loss events</li>
+<li>TCPTimeouts               : TCP timeout events</li>
+<li>TCPDSACKOldSent           : DSACKs sent for old packets</li>
+<li>TCPAbortOnData            : connections reset due to unexpected data</li>
+<li>TCPAbortOnClose           : connections reset due to early user close</li>
+<li>TCPAbortOnTimeout         : connections aborted due to timeout</li>
+</ul>
+</div>
+<div class="section" id="ipext">
+<h2>Ipext:<a class="headerlink" href="#ipext" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li>InMcastPkts    : multicast packets received</li>
+<li>OutMcastPkts   : multicast packets sent</li>
+<li>InBcastPkts    : broadcast packets received</li>
+<li>InOctets       : octets received</li>
+<li>OutOctets      : octets sent</li>
+<li>InMcastOctets  : multicast octets received</li>
+<li>OutMcastOctets : multicast octets sent</li>
+<li>InBcastOctets  : broadcast octets received</li>
+</ul>
+<dl class="function">
+<dt id="netstats.collect_netstats">
+<tt class="descclassname">netstats.</tt><tt class="descname">collect_netstats</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/netstats.html#collect_netstats"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#netstats.collect_netstats" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="netstats.configer">
+<tt class="descclassname">netstats.</tt><tt class="descname">configer</tt><big>(</big><em>ObjConfiguration</em><big>)</big><a class="reference internal" href="_modules/netstats.html#configer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#netstats.configer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="netstats.dispatch_metrics">
+<tt class="descclassname">netstats.</tt><tt class="descname">dispatch_metrics</tt><big>(</big><em>proto</em>, <em>labels</em>, <em>vals</em><big>)</big><a class="reference internal" href="_modules/netstats.html#dispatch_metrics"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#netstats.dispatch_metrics" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="netstats.get_host_type">
+<tt class="descclassname">netstats.</tt><tt class="descname">get_host_type</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/netstats.html#get_host_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#netstats.get_host_type" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="netstats.get_matches">
+<tt class="descclassname">netstats.</tt><tt class="descname">get_matches</tt><big>(</big><em>fname</em>, <em>rex</em><big>)</big><a class="reference internal" href="_modules/netstats.html#get_matches"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#netstats.get_matches" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="netstats.init_counters_list">
+<tt class="descclassname">netstats.</tt><tt class="descname">init_counters_list</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/netstats.html#init_counters_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#netstats.init_counters_list" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="netstats.init_netstat_counters_list">
+<tt class="descclassname">netstats.</tt><tt class="descname">init_netstat_counters_list</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/netstats.html#init_netstat_counters_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#netstats.init_netstat_counters_list" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="netstats.init_snmp_counters_list">
+<tt class="descclassname">netstats.</tt><tt class="descname">init_snmp_counters_list</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/netstats.html#init_snmp_counters_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#netstats.init_snmp_counters_list" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="netstats.initer">
+<tt class="descclassname">netstats.</tt><tt class="descname">initer</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/netstats.html#initer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#netstats.initer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="netstats.reader">
+<tt class="descclassname">netstats.</tt><tt class="descname">reader</tt><big>(</big><em>input_data=None</em><big>)</big><a class="reference internal" href="_modules/netstats.html#reader"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#netstats.reader" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="netstats.shutdown">
+<tt class="descclassname">netstats.</tt><tt class="descname">shutdown</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/netstats.html#shutdown"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#netstats.shutdown" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="netstats.writer">
+<tt class="descclassname">netstats.</tt><tt class="descname">writer</tt><big>(</big><em>metric</em>, <em>data=None</em><big>)</big><a class="reference internal" href="_modules/netstats.html#writer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#netstats.writer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">netstats Module</a><ul>
+<li><a class="reference internal" href="#ip">Ip:</a></li>
+<li><a class="reference internal" href="#icmp">Icmp:</a></li>
+<li><a class="reference internal" href="#tcp">Tcp:</a></li>
+<li><a class="reference internal" href="#udp">Udp:</a></li>
+<li><a class="reference internal" href="#tcpext">Tcpext:</a></li>
+<li><a class="reference internal" href="#ipext">Ipext:</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="fusionio.html"
+                        title="previous chapter">fusionio Module</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="vmstats.html"
+                        title="next chapter">vmstats Module</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/netstats.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="vmstats.html" title="vmstats Module"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="fusionio.html" title="fusionio Module"
+             >previous</a> |</li>
+        <li><a href="index.html">LinuxTelemetry 1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2016, Abdul Waheed.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

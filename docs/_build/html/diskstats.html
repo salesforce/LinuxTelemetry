@@ -1,0 +1,292 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>diskstats Module &mdash; LinuxTelemetry 1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="LinuxTelemetry 1 documentation" href="index.html" />
+    <link rel="next" title="fusionio Module" href="fusionio.html" />
+    <link rel="prev" title="buddyinfo Module" href="buddyinfo.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="fusionio.html" title="fusionio Module"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="buddyinfo.html" title="buddyinfo Module"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">LinuxTelemetry 1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-diskstats">
+<span id="diskstats-module"></span><h1>diskstats Module<a class="headerlink" href="#module-diskstats" title="Permalink to this headline">¶</a></h1>
+<p><strong>diskstats.py</strong></p>
+<p>This plug-in reads /proc/diskstats and collects stats 
+for a sub-set of devices, such as sda, sdb, ..., fio,
+md0, md1, md2, md3, etc.</p>
+<p>In addition to collecting raw stats, plugin can cache
+current value to determine time series derivatives (such as, iops, device
+utilization, etc.) at next collection interval.</p>
+<p>/proc/diskstats output shows one device stats per line and
+each line looks like this:</p>
+<p>252       1 dm-1 321244 0 12631594 480236 1104086 0 29567992 46637332 0 1841812 47117632</p>
+<p>Meaning of these lines is explained in linux kernel
+Documentation/iostat.txt (ignores first 3 fileds):</p>
+<ul>
+<li><dl class="first docutils">
+<dt>Field  1 &#8211; # of reads completed</dt>
+<dd><p class="first last">This is the total number of reads completed successfully.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>Field  2 &#8211; # of reads merged, field 6 &#8211; # of writes merged</dt>
+<dd><p class="first last">Reads and writes which are adjacent to each other may be merged for
+efficiency.  Thus two 4K reads may become one 8K read before it is
+ultimately handed to the disk, and so it will be counted (and queued)
+as only one I/O.  This field lets you know how often this was done.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>Field  3 &#8211; # of sectors read</dt>
+<dd><p class="first last">This is the total number of sectors read successfully.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>Field  4 &#8211; # of milliseconds spent reading</dt>
+<dd><p class="first last">This is the total number of milliseconds spent by all reads (as
+measured from __make_request() to end_that_request_last()).</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>Field  5 &#8211; # of writes completed</dt>
+<dd><p class="first last">This is the total number of writes completed successfully.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>Field  7 &#8211; # of sectors written</dt>
+<dd><p class="first last">This is the total number of sectors written successfully.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>Field  8 &#8211; # of milliseconds spent writing</dt>
+<dd><p class="first last">This is the total number of milliseconds spent by all writes (as
+measured from __make_request() to end_that_request_last()).</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>Field  9 &#8211; # of I/Os currently in progress</dt>
+<dd><p class="first last">The only field that should go to zero. Incremented as requests are
+given to appropriate struct request_queue and decremented as they finish.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>Field 10 &#8211; # of milliseconds spent doing I/Os</dt>
+<dd><p class="first last">This field is increases so long as field 9 is nonzero.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>Field 11 &#8211; weighted # of milliseconds spent doing I/Os</dt>
+<dd><p class="first last">This field is incremented at each I/O start, I/O completion, I/O
+merge, or read of these stats by the number of I/Os in progress
+(field 9) times the number of milliseconds spent doing I/O since the
+last update of this field.  This can provide an easy measure of both
+I/O completion time and the backlog that may be accumulating.</p>
+</dd>
+</dl>
+</li>
+</ul>
+<dl class="data">
+<dt id="diskstats.METRIC_TYPE">
+<tt class="descclassname">diskstats.</tt><tt class="descname">METRIC_TYPE</tt><em class="property"> = 'gauge'</em><a class="headerlink" href="#diskstats.METRIC_TYPE" title="Permalink to this definition">¶</a></dt>
+<dd><p>We want to limit the length of device list by ignoring
+sub-partitions when number of devices are beyond certian
+limit. We can also limit the number of devices by ignoring
+devices beyond certian limit, which is handy for supporting
+DB nodes with large number of logical units.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="diskstats.calc_del_t">
+<tt class="descclassname">diskstats.</tt><tt class="descname">calc_del_t</tt><big>(</big><em>dev</em><big>)</big><a class="reference internal" href="_modules/diskstats.html#calc_del_t"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#diskstats.calc_del_t" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="diskstats.calc_metrics">
+<tt class="descclassname">diskstats.</tt><tt class="descname">calc_metrics</tt><big>(</big><em>dev</em><big>)</big><a class="reference internal" href="_modules/diskstats.html#calc_metrics"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#diskstats.calc_metrics" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="diskstats.collect_diskstats">
+<tt class="descclassname">diskstats.</tt><tt class="descname">collect_diskstats</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/diskstats.html#collect_diskstats"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#diskstats.collect_diskstats" title="Permalink to this definition">¶</a></dt>
+<dd><p>Collectd statistics for devices in global dev_list from /proc/diskstats</p>
+<p>Args: None</p>
+<dl class="docutils">
+<dt>Returns: A dictionary collection of device specific raw statistics that</dt>
+<dd>includes timestamps</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="diskstats.configer">
+<tt class="descclassname">diskstats.</tt><tt class="descname">configer</tt><big>(</big><em>ObjConfiguration</em><big>)</big><a class="reference internal" href="_modules/diskstats.html#configer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#diskstats.configer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="diskstats.dispatch_metrics">
+<tt class="descclassname">diskstats.</tt><tt class="descname">dispatch_metrics</tt><big>(</big><em>dev_name</em>, <em>keys</em>, <em>vals</em><big>)</big><a class="reference internal" href="_modules/diskstats.html#dispatch_metrics"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#diskstats.dispatch_metrics" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="diskstats.get_dev_list">
+<tt class="descclassname">diskstats.</tt><tt class="descname">get_dev_list</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/diskstats.html#get_dev_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#diskstats.get_dev_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function determines a device list for this plugin monitoring.</p>
+<p>There are a number of non-storage devices in /proc/diskstat output
+that need to be skipped. These inclue loop, ram, and possibly 
+other devices and partitions.</p>
+<p>In addition, we can decide whether to collect device partition
+stats based on number of overall devices constand: DISKSTATS_DEV_TOO_MANY.
+Also, it is possible to limit the overall number of devices and 
+partitions that need to be tracked using: DISKSTATS_DEV_LIMIT.</p>
+<dl class="docutils">
+<dt>Args:</dt>
+<dd>None</dd>
+<dt>Returns:</dt>
+<dd>Updated global dev_list</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="diskstats.init_dev_stats_cache">
+<tt class="descclassname">diskstats.</tt><tt class="descname">init_dev_stats_cache</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/diskstats.html#init_dev_stats_cache"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#diskstats.init_dev_stats_cache" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="diskstats.initer">
+<tt class="descclassname">diskstats.</tt><tt class="descname">initer</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/diskstats.html#initer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#diskstats.initer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="diskstats.reader">
+<tt class="descclassname">diskstats.</tt><tt class="descname">reader</tt><big>(</big><em>input_data=None</em><big>)</big><a class="reference internal" href="_modules/diskstats.html#reader"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#diskstats.reader" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="diskstats.shutdown">
+<tt class="descclassname">diskstats.</tt><tt class="descname">shutdown</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/diskstats.html#shutdown"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#diskstats.shutdown" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="diskstats.swap_current_cache">
+<tt class="descclassname">diskstats.</tt><tt class="descname">swap_current_cache</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/diskstats.html#swap_current_cache"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#diskstats.swap_current_cache" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="diskstats.writer">
+<tt class="descclassname">diskstats.</tt><tt class="descname">writer</tt><big>(</big><em>metric</em>, <em>data=None</em><big>)</big><a class="reference internal" href="_modules/diskstats.html#writer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#diskstats.writer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="buddyinfo.html"
+                        title="previous chapter">buddyinfo Module</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="fusionio.html"
+                        title="next chapter">fusionio Module</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/diskstats.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="fusionio.html" title="fusionio Module"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="buddyinfo.html" title="buddyinfo Module"
+             >previous</a> |</li>
+        <li><a href="index.html">LinuxTelemetry 1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2016, Abdul Waheed.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

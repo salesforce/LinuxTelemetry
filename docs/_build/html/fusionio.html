@@ -1,0 +1,239 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>fusionio Module &mdash; LinuxTelemetry 1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="LinuxTelemetry 1 documentation" href="index.html" />
+    <link rel="next" title="netstats Module" href="netstats.html" />
+    <link rel="prev" title="diskstats Module" href="diskstats.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="netstats.html" title="netstats Module"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="diskstats.html" title="diskstats Module"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">LinuxTelemetry 1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-fusionio">
+<span id="fusionio-module"></span><h1>fusionio Module<a class="headerlink" href="#module-fusionio" title="Permalink to this headline">¶</a></h1>
+<p><strong>fusionio.py</strong></p>
+<p>Collectd plugin for fusion-io device measurement. It
+currently measures:
+1. physical blocks read
+2. physical blocks written
+3. total blocks
+4. min block erases count
+5. max block erases count
+6. average block erases count</p>
+<div class="section" id="physical-bytes-written-are-obtained-as">
+<h2>physical bytes written are obtained as:<a class="headerlink" href="#physical-bytes-written-are-obtained-as" title="Permalink to this headline">¶</a></h2>
+<p>cmd_bytes_written = &#8216;/usr/bin/fio-status -a | &#8216;</p>
+<p>cmd_bytes_written += &#8216;grep &#8220;Physical bytes written:&#8221; | &#8216;</p>
+<p>cmd_bytes_written += &#8216;awk &#8216;{print $4}&#8217;&#8216;</p>
+</div>
+<div class="section" id="physical-bytes-read-are-obtained-as">
+<h2>physical bytes read are obtained as:<a class="headerlink" href="#physical-bytes-read-are-obtained-as" title="Permalink to this headline">¶</a></h2>
+<p>cmd_bytes_read = &#8216;/usr/bin/fio-status -a | &#8216;</p>
+<p>cmd_bytes_read += &#8216;grep &#8220;Physical bytes read   :&#8221; | &#8216;</p>
+<p>cmd_bytes_read += &#8216;awk &#8216;{print $5}&#8217;&#8216;</p>
+</div>
+<div class="section" id="block-erase-counts-total-min-max-avg-are-obtained-as">
+<h2>Block erase counts (total, min, max, avg) are obtained as:<a class="headerlink" href="#block-erase-counts-total-min-max-avg-are-obtained-as" title="Permalink to this headline">¶</a></h2>
+<p>cmd_erased_blocks = &#8216;/usr/bin/fio-get-erase-count /dev/fct0 | &#8216;</p>
+<p>cmd_erased_blocks += &#8216;tail -n 5 | cut -d: -f 2 | sed &#8216;s/^ *//&#8217;&#8216;</p>
+<dl class="function">
+<dt id="fusionio.collect_fiostats">
+<tt class="descclassname">fusionio.</tt><tt class="descname">collect_fiostats</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/fusionio.html#collect_fiostats"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.collect_fiostats" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.configer">
+<tt class="descclassname">fusionio.</tt><tt class="descname">configer</tt><big>(</big><em>ObjConfiguration</em><big>)</big><a class="reference internal" href="_modules/fusionio.html#configer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.configer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.extract_val">
+<tt class="descclassname">fusionio.</tt><tt class="descname">extract_val</tt><big>(</big><em>out</em>, <em>key</em><big>)</big><a class="reference internal" href="_modules/fusionio.html#extract_val"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.extract_val" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.get_block_erases">
+<tt class="descclassname">fusionio.</tt><tt class="descname">get_block_erases</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/fusionio.html#get_block_erases"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.get_block_erases" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.get_fiostats">
+<tt class="descclassname">fusionio.</tt><tt class="descname">get_fiostats</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/fusionio.html#get_fiostats"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.get_fiostats" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.get_host_type">
+<tt class="descclassname">fusionio.</tt><tt class="descname">get_host_type</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/fusionio.html#get_host_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.get_host_type" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.get_physical_bytes">
+<tt class="descclassname">fusionio.</tt><tt class="descname">get_physical_bytes</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/fusionio.html#get_physical_bytes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.get_physical_bytes" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.grep">
+<tt class="descclassname">fusionio.</tt><tt class="descname">grep</tt><big>(</big><em>s</em>, <em>pattern</em><big>)</big><a class="reference internal" href="_modules/fusionio.html#grep"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.grep" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.init_stats_cache">
+<tt class="descclassname">fusionio.</tt><tt class="descname">init_stats_cache</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/fusionio.html#init_stats_cache"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.init_stats_cache" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.initer">
+<tt class="descclassname">fusionio.</tt><tt class="descname">initer</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/fusionio.html#initer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.initer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.is_fio_device">
+<tt class="descclassname">fusionio.</tt><tt class="descname">is_fio_device</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/fusionio.html#is_fio_device"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.is_fio_device" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.reader">
+<tt class="descclassname">fusionio.</tt><tt class="descname">reader</tt><big>(</big><em>input_data=None</em><big>)</big><a class="reference internal" href="_modules/fusionio.html#reader"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.reader" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.remove_start">
+<tt class="descclassname">fusionio.</tt><tt class="descname">remove_start</tt><big>(</big><em>s</em>, <em>word_to_remove</em><big>)</big><a class="reference internal" href="_modules/fusionio.html#remove_start"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.remove_start" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.run_cmd">
+<tt class="descclassname">fusionio.</tt><tt class="descname">run_cmd</tt><big>(</big><em>cmd</em><big>)</big><a class="reference internal" href="_modules/fusionio.html#run_cmd"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.run_cmd" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.shutdown">
+<tt class="descclassname">fusionio.</tt><tt class="descname">shutdown</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/fusionio.html#shutdown"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.shutdown" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.swap_current_cache">
+<tt class="descclassname">fusionio.</tt><tt class="descname">swap_current_cache</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/fusionio.html#swap_current_cache"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.swap_current_cache" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="fusionio.writer">
+<tt class="descclassname">fusionio.</tt><tt class="descname">writer</tt><big>(</big><em>metric</em>, <em>data=None</em><big>)</big><a class="reference internal" href="_modules/fusionio.html#writer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#fusionio.writer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">fusionio Module</a><ul>
+<li><a class="reference internal" href="#physical-bytes-written-are-obtained-as">physical bytes written are obtained as:</a></li>
+<li><a class="reference internal" href="#physical-bytes-read-are-obtained-as">physical bytes read are obtained as:</a></li>
+<li><a class="reference internal" href="#block-erase-counts-total-min-max-avg-are-obtained-as">Block erase counts (total, min, max, avg) are obtained as:</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="diskstats.html"
+                        title="previous chapter">diskstats Module</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="netstats.html"
+                        title="next chapter">netstats Module</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/fusionio.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="netstats.html" title="netstats Module"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="diskstats.html" title="diskstats Module"
+             >previous</a> |</li>
+        <li><a href="index.html">LinuxTelemetry 1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2016, Abdul Waheed.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

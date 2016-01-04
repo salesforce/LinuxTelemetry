@@ -1,8 +1,6 @@
 #!/usr/bin/python
 
-##########################################################
-# fusionio.py
-#
+##########################################################################
 # Copyright (c) 2015, Salesforce.com, Inc.
 # All rights reserved.
 #
@@ -30,36 +28,46 @@
 # IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 # EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
-##########################################################
+##########################################################################
 
-##########################################################
-# Plugin description:
-# 
-# Collectd plugin for fusion-io device measurement. It
-# currently measures:
-# 1. physical blocks read
-# 2. physical blocks written
-# 3. total blocks
-# 4. min block erases count
-# 5. max block erases count
-# 6. average block erases count
-#
-# physical bytes written are obtained as:
-#  cmd_bytes_written = '/usr/bin/fio-status -a | '
-#  cmd_bytes_written += 'grep \"Physical bytes written:\" | '
-#  cmd_bytes_written += 'awk \'{print $4}\''
-#
-# physical bytes read are obtained as:
-#  cmd_bytes_read = '/usr/bin/fio-status -a | '
-#  cmd_bytes_read += 'grep \"Physical bytes read   :\" | '
-#  cmd_bytes_read += 'awk \'{print $5}\''
-#
-# Block erase counts (total, min, max, avg) are obtained as:
-#  cmd_erased_blocks = '/usr/bin/fio-get-erase-count /dev/fct0 | '
-#  cmd_erased_blocks += 'tail -n 5 | cut -d: -f 2 | sed \'s/^ *//\''
-# 
-##########################################################
+"""
+**fusionio.py**
+
+Collectd plugin for fusion-io device measurement. It
+currently measures:
+1. physical blocks read
+2. physical blocks written
+3. total blocks
+4. min block erases count
+5. max block erases count
+6. average block erases count
+
+physical bytes written are obtained as:
+---------------------------------------
+
+cmd_bytes_written = '/usr/bin/fio-status -a | '
+
+cmd_bytes_written += 'grep \"Physical bytes written:\" | '
+
+cmd_bytes_written += 'awk \'{print $4}\''
+
+physical bytes read are obtained as:
+------------------------------------
+
+cmd_bytes_read = '/usr/bin/fio-status -a | '
+
+cmd_bytes_read += 'grep \"Physical bytes read   :\" | '
+
+cmd_bytes_read += 'awk \'{print $5}\''
+
+Block erase counts (total, min, max, avg) are obtained as:
+----------------------------------------------------------
+
+cmd_erased_blocks = '/usr/bin/fio-get-erase-count /dev/fct0 | '
+
+cmd_erased_blocks += 'tail -n 5 | cut -d: -f 2 | sed \'s/^ \*//\''
+
+"""
 
 import collectd
 import platform
@@ -128,9 +136,9 @@ def is_fio_device():
 
 def run_cmd (cmd):
    s = ''
-   p = subprocess.Popen(cmd, 
-                        shell=True, 
-                        stdout=subprocess.PIPE, 
+   p = subprocess.Popen(cmd,
+                        shell=True,
+                        stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT)
    for line in p.stdout.readlines():
       s += line
@@ -240,7 +248,7 @@ def init_stats_cache():
                     stats_cache[(key_name, 'ts')] = time.time()
             f.close()
     else:
-        collectd.info('fusionio: init_stats_cache: path: %s does not exist' 
+        collectd.info('fusionio: init_stats_cache: path: %s does not exist'
                       % (fio_fname))
 
 def collect_fiostats():
@@ -272,7 +280,7 @@ def swap_current_cache():
 
 
 def configer(ObjConfiguration):
-   collectd.info('fusionio plugin: configuring host: %s' % (host_name)) 
+   collectd.info('fusionio plugin: configuring host: %s' % (host_name))
 
 def initer():
    collectd.info('fusionio plugin: host of type: %s' % (host_type))
@@ -304,4 +312,3 @@ if ((host_type == 'search') and (os_name == 'Linux') and (is_fio_device())):
 else:
    collectd.error('fio plugin works for search hosts only; type: %s os: %s'
                   % (host_type, os_name))
-

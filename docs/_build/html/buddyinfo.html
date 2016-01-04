@@ -1,0 +1,186 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>buddyinfo Module &mdash; LinuxTelemetry 1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="LinuxTelemetry 1 documentation" href="index.html" />
+    <link rel="next" title="diskstats Module" href="diskstats.html" />
+    <link rel="prev" title="Welcome to LinuxTelemetry’s documentation!" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="diskstats.html" title="diskstats Module"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Welcome to LinuxTelemetry’s documentation!"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">LinuxTelemetry 1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-buddyinfo">
+<span id="buddyinfo-module"></span><h1>buddyinfo Module<a class="headerlink" href="#module-buddyinfo" title="Permalink to this headline">¶</a></h1>
+<p><strong>buddyinfo.py</strong></p>
+<p>Linux uses buddy allocator for memory management. Pages
+are allocated in each NUMA node and zones within each
+node. Within each zones, pages are allocated as 
+contiguous groups of 1, 2, 3, 4, and so on order
+pages where 1 means 4K pages. Number of free pages in
+each bucket is exposed through /proc/buddyinfo
+When this number goes below a threshold in any bucket,
+kswapd (slowpath for finding free pages) kicks in. It
+then scans for free pages in all order levels until
+all of them reach above min limit. This process can take
+long time and may cause issues for GC latencies.</p>
+<p>Typical contents of /proc/buddyinfo:</p>
+<ul class="simple">
+<li>Node 0, zone   Normal   1490   4026  12224   8508   4493   1929    849    301    101     45   5257</li>
+<li>Node 1, zone      DMA      1      1      1      1      1      0      1      0      1      1      3</li>
+<li>Node 1, zone    DMA32     15      3      2      5      8      7      4      4      7      8    681</li>
+<li>Node 1, zone   Normal   6061  13681  20887  15188   9097   4546   1948    731    273    125   3976</li>
+</ul>
+<p>Here are the fields interpretation in each row:
+1. NUMA node (such as 0 or 1)
+2. Zone name (Normal, DMA32, DMA, etc.)
+3. Col. 3 to end: page order or buckets on contiguous memory sizes: 4K, 8K, 16K, 32K, 64K, 128K, 256K, 512K, 1024K, and 2048K</p>
+<dl class="function">
+<dt id="buddyinfo.collect_buddyinfo">
+<tt class="descclassname">buddyinfo.</tt><tt class="descname">collect_buddyinfo</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/buddyinfo.html#collect_buddyinfo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#buddyinfo.collect_buddyinfo" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="buddyinfo.configer">
+<tt class="descclassname">buddyinfo.</tt><tt class="descname">configer</tt><big>(</big><em>ObjConfiguration</em><big>)</big><a class="reference internal" href="_modules/buddyinfo.html#configer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#buddyinfo.configer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="buddyinfo.get_host_type">
+<tt class="descclassname">buddyinfo.</tt><tt class="descname">get_host_type</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/buddyinfo.html#get_host_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#buddyinfo.get_host_type" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="buddyinfo.init_stats_cache">
+<tt class="descclassname">buddyinfo.</tt><tt class="descname">init_stats_cache</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/buddyinfo.html#init_stats_cache"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#buddyinfo.init_stats_cache" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="buddyinfo.initer">
+<tt class="descclassname">buddyinfo.</tt><tt class="descname">initer</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/buddyinfo.html#initer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#buddyinfo.initer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="buddyinfo.reader">
+<tt class="descclassname">buddyinfo.</tt><tt class="descname">reader</tt><big>(</big><em>input_data=None</em><big>)</big><a class="reference internal" href="_modules/buddyinfo.html#reader"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#buddyinfo.reader" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="buddyinfo.shutdown">
+<tt class="descclassname">buddyinfo.</tt><tt class="descname">shutdown</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/buddyinfo.html#shutdown"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#buddyinfo.shutdown" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="buddyinfo.swap_current_cache">
+<tt class="descclassname">buddyinfo.</tt><tt class="descname">swap_current_cache</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/buddyinfo.html#swap_current_cache"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#buddyinfo.swap_current_cache" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="buddyinfo.writer">
+<tt class="descclassname">buddyinfo.</tt><tt class="descname">writer</tt><big>(</big><em>metric</em>, <em>data=None</em><big>)</big><a class="reference internal" href="_modules/buddyinfo.html#writer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#buddyinfo.writer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="index.html"
+                        title="previous chapter">Welcome to LinuxTelemetry&#8217;s documentation!</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="diskstats.html"
+                        title="next chapter">diskstats Module</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/buddyinfo.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="diskstats.html" title="diskstats Module"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Welcome to LinuxTelemetry’s documentation!"
+             >previous</a> |</li>
+        <li><a href="index.html">LinuxTelemetry 1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2016, Abdul Waheed.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
