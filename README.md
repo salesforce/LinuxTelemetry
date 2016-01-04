@@ -9,12 +9,12 @@ levels. These python based plugins extend base collectd to monitor
 
 Following plugins are being provided:
 
-1. [Diskstats](docs/_build/html/diskstats.html)
-2. [Fusion-io](docs/_build/html/fusionio.html)
-3. [Vmstats](docs/_build/html/vmstats.html)
-4. [Buddyinfo](docs/_build/html/buddyinfo.html)
-5. [Zoneinfo](docs/_build/html/zoneinfo.html)
-6. [Netstats](docs/_build/html/netstats.html)
+1. [Diskstats](docs/diskstats.rst)
+2. [Fusion-io](docs/fusionio.rst)
+3. [Vmstats](docs/vmstats.rst)
+4. [Buddyinfo](docs/buddyinfo.rst)
+5. [Zoneinfo](docs/zoneinfo.rst)
+6. [Netstats](docs/netstats.rst)
 
 Except for fusion-io plugin, all others gather system level metrics
 through procfs from corresponding locations: /proc/diskstats,
