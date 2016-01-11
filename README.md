@@ -54,7 +54,11 @@ Edit collectd configuration in /etc/collectd.conf to allow it to use external pl
 
 Install plugins using:
 
-`sudo python setup.py install`
+```
+git clone https://github.com/SalesforceEng/LinuxTelemetry.git
+cd LinuxTelemetry
+sudo python setup.py install
+```
 
 This install script requires that base collectd is already installed with
 following files/directories:
