@@ -77,6 +77,11 @@ import time
 import re
 import subprocess
 
+try:
+   long        # Python 2
+except NameError:
+   long = int  # Python 3
+
 os_name = platform.system()
 host_name = socket.gethostbyaddr(socket.gethostname())[0]
 host_types = ['app', 'db', 'ffx', 'indexer', 'search', 'other']
