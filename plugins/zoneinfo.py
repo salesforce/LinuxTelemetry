@@ -45,6 +45,8 @@ import os
 import socket
 import time
 import re
+import sys
+import traceback
 
 os_name = platform.system()
 host_name = socket.gethostbyaddr(socket.gethostname())[0]
@@ -106,65 +108,99 @@ def get_host_type():
          host_type = i
 
 def init_stats_cache():
-   if os.path.exists(ZONEINFO_FNAME):
-      with open(ZONEINFO_FNAME) as f:
-         match = re.finditer(re_zoneinfo, f.read())
-         if not match:
-            collectd.error('zoneinfo: init: pattern not found')
-            return
-         for m in match:
-            node = m.group('node')
-            zone = m.group('zone')
-            if node not in node_list:
-               node_list.append(node)
-            if zone not in zone_list:
-               zone_list.append(zone)
+   try:
+      if os.path.exists(ZONEINFO_FNAME):
+         with open(ZONEINFO_FNAME) as f:
+            match = re.finditer(re_zoneinfo, f.read())
+            if not match:
+               collectd.error('zoneinfo: init: pattern not found')
+               return
+            for m in match:
+               if 'node' in m.groupdict():
+                  node = m.group('node')
+               else:
+                  collectd.error('node not found in zoneinfo')
+                  return
+               if 'zone' in m.groupdict():
+                  zone = m.group('zone')
+               else:
+                  collectd.error('zone not found in zoneinfo')
+                  return
+               if node not in node_list:
+                  node_list.append(node)
+               if zone not in zone_list:
+                  zone_list.append(zone)
 
-            zone_pages = []
-            for i in white_list:
-               zone_pages.append(m.group(i))
+               zone_pages = []
+               for i in white_list:
+                  if i in m.groupdict():
+                     zone_pages.append(m.group(i))
+                  else:
+                     collectd.error(i + ' not found in zoneinfo')
+                     return
 
-            stats_cache[(node, zone, 'val')] = zone_pages
-            stats_cache[(node, zone, 'ts')] = time.time()
+               stats_cache[(node, zone, 'val')] = zone_pages
+               stats_cache[(node, zone, 'ts')] = time.time()
 
-         f.close()
-         collectd.info('node_list: %s' % (node_list))
-         collectd.info('zone_list: %s' % (zone_list))
-         collectd.info('white_list: %s' % (white_list))
-   else:
-      collectd.error('zoneinfo: init: procfs path: %s does not exist'
-                     % (ZONEINFO_FNAME))
+            f.close()
+            collectd.info('node_list: %s' % (node_list))
+            collectd.info('zone_list: %s' % (zone_list))
+            collectd.info('white_list: %s' % (white_list))
+      else:
+         collectd.error('zoneinfo: init: procfs path: %s does not exist'
+                        % (ZONEINFO_FNAME))
+   except Exception as e:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      collectd.error('Exception during zoneinfo init: %s\n%s' %
+                     (str(e), traceback.format_tb(exc_traceback)))
 
 def collect_zoneinfo():
-   if os.path.exists(ZONEINFO_FNAME):
-      with open(ZONEINFO_FNAME) as f:
-         match = re.finditer(re_zoneinfo, f.read())
-         if not match:
-            collectd.error('zoneinfo: collect: pattern not found')
-            return
-         for m in match:
-            zone_pages = []
-            node = m.group('node')
-            zone = m.group('zone')
-            for i in white_list:
-               zone_pages.append(m.group(i))
-            stats_current[(node, zone, 'val')] = zone_pages
-            stats_current[(node, zone, 'ts')] = time.time()
-            metric = collectd.Values()
-            metric.host = host_name
-            metric.plugin = METRIC_PLUGIN
-            metric.plugin_instance = node
-            metric.type = METRIC_TYPE
-            for k in range(0, len(white_list)):
-               metric.type_instance = 'zone_' + zone + '_'
-               metric.type_instance += white_list[k]
-               metric.values = [zone_pages[k]]
-               metric.dispatch()
+   try:
+      if os.path.exists(ZONEINFO_FNAME):
+         with open(ZONEINFO_FNAME) as f:
+            match = re.finditer(re_zoneinfo, f.read())
+            if not match:
+               collectd.error('zoneinfo: collect: pattern not found')
+               return
+            for m in match:
+               zone_pages = []
+               if 'node' in m.groupdict():
+                  node = m.group('node')
+               else:
+                  collectd.error('node not found in zoneinfo')
+                  return
+               if 'zone' in m.groupdict():
+                  zone = m.group('zone')
+               else:
+                  collectd.error('zone not found in zoneinfo')
+                  return
+               for i in white_list:
+                  if i in m.groupdict():
+                     zone_pages.append(m.group(i))
+                  else:
+                     collectd.error(i + ' not found in zoneinfo')
+                     return
+               stats_current[(node, zone, 'val')] = zone_pages
+               stats_current[(node, zone, 'ts')] = time.time()
+               metric = collectd.Values()
+               metric.host = host_name
+               metric.plugin = METRIC_PLUGIN
+               metric.plugin_instance = node
+               metric.type = METRIC_TYPE
+               for k in range(0, len(white_list)):
+                  metric.type_instance = 'zone_' + zone + '_'
+                  metric.type_instance += white_list[k]
+                  metric.values = [zone_pages[k]]
+                  metric.dispatch()
 
-      f.close()
-   else:
-      collectd.error('zoneinfo: collect: procfs path: %s does not exist'
-                     % (ZONEINFO_FNAME))
+         f.close()
+      else:
+         collectd.error('zoneinfo: collect: procfs path: %s does not exist'
+                        % (ZONEINFO_FNAME))
+   except Exception as e:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      collectd.error('Exception during zoneinfo collection: %s\n%s' %
+                     (str(e), traceback.format_tb(exc_traceback)))
 
 def swap_current_cache():
    stats_cache = stats_current.copy()
