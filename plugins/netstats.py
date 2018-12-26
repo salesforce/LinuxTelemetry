@@ -168,8 +168,9 @@ import collectd
 import platform
 import os
 import socket
-import time
 import re
+import sys
+import traceback
 
 os_name = platform.system()
 host_name = socket.gethostbyaddr(socket.gethostname())[0]
@@ -298,27 +299,69 @@ def get_matches(fname, rex):
 
 def init_snmp_counters_list():
    global ip_list, icmp_list, icmpmsg_list, tcp_list, udp_list, udplite_list
-   match = get_matches(SNMP_FNAME, re_snmp)
-   if not match:
-      print('init_snmp_white_list: snmp metrics not found')
-      return
-   for m in match:
-      ip_list = m.group('ip_labels').strip().split()
-      icmp_list = m.group('icmp_labels').strip().split()
-      icmpmsg_list = m.group('icmpmsg_labels').strip().split()
-      tcp_list = m.group('tcp_labels').strip().split()
-      udp_list = m.group('udp_labels').strip().split()
-      udplite_list = m.group('udplite_labels').strip().split()
+   try:
+      match = get_matches(SNMP_FNAME, re_snmp)
+      if not match:
+         print('init_snmp_white_list: snmp metrics not found')
+         return
+      for m in match:
+         if 'ip_labels' in m.groupdict():
+            ip_list = m.group('ip_labels').strip().split()
+         else:
+            collectd.error('ip_labels not found in netstats')
+            return
+         if 'icmp_labels' in m.groupdict():
+            icmp_list = m.group('icmp_labels').strip().split()
+         else:
+             collectd.error('icmp_labels not found in netstats')
+             return
+         if 'icmpmsg_labels' in m.groupdict():
+            icmpmsg_list = m.group('icmpmsg_labels').strip().split()
+         else:
+             collectd.error('icmpmsg_labels not found in netstats')
+             return
+         if 'tcp_labels' in m.groupdict():
+            tcp_list = m.group('tcp_labels').strip().split()
+         else:
+             collectd.error('tcp_labels not found in netstats')
+             return
+         if 'udp_labels' in m.groupdict():
+            udp_list = m.group('udp_labels').strip().split()
+         else:
+             collectd.error('udp_labels not found in netstats')
+             return
+         if 'udplite_labels' in m.groupdict():
+            udplite_list = m.group('udplite_labels').strip().split()
+         else:
+             collectd.error('udplite_labels not found in netstats')
+             return
+   except Exception as e:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      collectd.error('Exception during netstats init: %s\n%s' %
+                     (str(e), traceback.format_tb(exc_traceback)))
 
 def init_netstat_counters_list():
-   global tcpext_list, ipext_list
-   match = get_matches(NETSTAT_FNAME, re_netstat)
-   if not match:
-      print('init_netstat_white_list: netstat metrics not found')
-      return
-   for m in match:
-      tcpext_list = m.group('tcpext_labels').strip().split()
-      ipext_list = m.group('ipext_labels').strip().split()
+   try:
+      global tcpext_list, ipext_list
+      match = get_matches(NETSTAT_FNAME, re_netstat)
+      if not match:
+         print('init_netstat_white_list: netstat metrics not found')
+         return
+      for m in match:
+         if 'tcpext_labels' in m.groupdict():
+            tcpext_list = m.group('tcpext_labels').strip().split()
+         else:
+             collectd.error('tcpext_labels not found in netstats')
+             return
+         if 'ipext_labels' in m.groupdict():
+            ipext_list = m.group('ipext_labels').strip().split()
+         else:
+             collectd.error('ipext_labels not found in netstats')
+             return
+   except Exception as e:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      collectd.error('Exception during netstats init: %s\n%s' %
+                     (str(e), traceback.format_tb(exc_traceback)))
 
 def init_counters_list():
    init_snmp_counters_list()
@@ -338,25 +381,62 @@ def init_counters_list():
 def collect_netstats():
    global ip_vals, icmp_vals, icmpmsg_vals, tcp_vals, udp_vals, udplite_vals
    global tcpext_vals, ipext_vals
-   match_snmp = get_matches(SNMP_FNAME, re_snmp)
-   if not match_snmp:
-      collectd.error('collect_netstat: snmp metrics not found')
-      return
-   for m in match_snmp:
-      ip_vals = m.group('ip_vals').strip().split()
-      icmp_vals = m.group('icmp_vals').strip().split()
-      icmpmsg_vals = m.group('icmpmsg_vals').strip().split()
-      tcp_vals = m.group('tcp_vals').strip().split()
-      udp_vals = m.group('udp_vals').strip().split()
-      udplite_vals = m.group('udplite_vals').strip().split()
+   try:
+      match_snmp = get_matches(SNMP_FNAME, re_snmp)
+      if not match_snmp:
+         collectd.error('collect_netstat: snmp metrics not found')
+         return
+      for m in match_snmp:
+         if 'ip_vals' in m.groupdict():
+            ip_vals = m.group('ip_vals').strip().split()
+         else:
+            collectd.error('ip_vals not found in netstats')
+            return
+         if 'icmp_vals' in m.groupdict():
+            icmp_vals = m.group('icmp_vals').strip().split()
+         else:
+            collectd.error('icmp_vals not found in netstats')
+            return
+         if 'icmpmsg_vals' in m.groupdict():
+            icmpmsg_vals = m.group('icmpmsg_vals').strip().split()
+         else:
+            collectd.error('icmpmsg_vals not found in netstats')
+            return
+         if 'tcp_vals' in m.groupdict():
+            tcp_vals = m.group('tcp_vals').strip().split()
+         else:
+            collectd.error('tcp_vals not found in netstats')
+            return
+         if 'udp_vals' in m.groupdict():
+            udp_vals = m.group('udp_vals').strip().split()
+         else:
+            collectd.error('udp_vals not found in netstats')
+            return
+         if 'udplite_vals' in m.groupdict():
+            udplite_vals = m.group('udplite_vals').strip().split()
+         else:
+            collectd.error('udplite_vals not found in netstats')
+            return
 
-   match_netstat = get_matches(NETSTAT_FNAME, re_netstat)
-   if not match_netstat:
-      collectd.error('collect_netstat: netstat metrics not found')
-      return
-   for m in match_netstat:
-      tcpext_vals = m.group('tcpext_vals').strip().split()
-      ipext_vals = m.group('ipext_vals').strip().split()
+      match_netstat = get_matches(NETSTAT_FNAME, re_netstat)
+      if not match_netstat:
+         collectd.error('collect_netstat: netstat metrics not found')
+         return
+      for m in match_netstat:
+         if 'tcpext_vals' in m.groupdict():
+            tcpext_vals = m.group('tcpext_vals').strip().split()
+         else:
+            collectd.error('tcpext_vals not found in netstats')
+            return
+         if 'ipext_vals' in m.groupdict():
+            ipext_vals = m.group('ipext_vals').strip().split()
+         else:
+            collectd.error('ipext_vals not found in netstats')
+            return
+   except Exception as e:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      collectd.error('Exception during netstats collection: %s\n%s' %
+                     (str(e), traceback.format_tb(exc_traceback)))
 
 def dispatch_metrics(proto, labels, vals):
    metric = collectd.Values()

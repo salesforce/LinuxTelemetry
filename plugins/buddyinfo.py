@@ -65,6 +65,8 @@ import os
 import socket
 import time
 import re
+import sys
+import traceback
 
 os_name = platform.system()
 host_name = socket.gethostbyaddr(socket.gethostname())[0]
@@ -102,44 +104,74 @@ def get_host_type():
 def init_stats_cache():
    global white_list
 
-   if os.path.exists(BUDDY_FNAME):
-      num_buckets = 0
-      with open(BUDDY_FNAME) as f:
-         for line in f:
-            match = re_buddyinfo.search(line)
-            if not match:
-               collectd.error('buddyinfo: unknown line pattern: %s' % (line))
-               continue;
-            node = match.group('node')
-            zone = match.group('zone')
-            free_pages = match.group('pages').strip().split()
-            num_buckets = len(free_pages)
-            if node not in node_list:
-               node_list.append(node)
-            if zone not in zone_list:
-               zone_list.append(zone)
-            stats_cache[(node, zone, 'val')] = free_pages
-            stats_cache[(node, zone, 'ts')] = time.time()
-      f.close()
-      for i in range(0, num_buckets):
-         white_list.append('free_pages_' + str(4*2**i) + 'K')
-      collectd.info('buddyinfo: node_list : %s' % (node_list))
-      collectd.info('buddyinfo: zone_list : %s' % (zone_list))
-      collectd.info('buddyinfo: white_list: %s' % (white_list))
-   else:
-      collectd.info('buddyinfo: init_stats_cache: path: %s does not exist'
-                    % (BUDDY_FNAME))
+   try:
+      if os.path.exists(BUDDY_FNAME):
+         num_buckets = 0
+         with open(BUDDY_FNAME) as f:
+            for line in f:
+               match = re_buddyinfo.search(line)
+               if not match:
+                  collectd.error('buddyinfo: unknown line pattern: %s' % (line))
+                  continue;
+               if 'node' in match.groupdict():
+                  node = match.group('node')
+               else:
+                  collectd.error('node not found in buddyinfo')
+                  return
+               if 'zone' in match.groupdict():
+                  zone = match.group('zone')
+               else:
+                  collectd.error('zone not found in buddyinfo')
+                  return
+               if 'pages' in match.groupdict():
+                  free_pages = match.group('pages').strip().split()
+               else:
+                  collectd.error('pages not found in buddyinfo')
+                  return
+               num_buckets = len(free_pages)
+               if node not in node_list:
+                  node_list.append(node)
+               if zone not in zone_list:
+                  zone_list.append(zone)
+               stats_cache[(node, zone, 'val')] = free_pages
+               stats_cache[(node, zone, 'ts')] = time.time()
+         f.close()
+         for i in range(0, num_buckets):
+            white_list.append('free_pages_' + str(4*2**i) + 'K')
+         collectd.info('buddyinfo: node_list : %s' % (node_list))
+         collectd.info('buddyinfo: zone_list : %s' % (zone_list))
+         collectd.info('buddyinfo: white_list: %s' % (white_list))
+      else:
+         collectd.info('buddyinfo: init_stats_cache: path: %s does not exist'
+                       % (BUDDY_FNAME))
+   except Exception as e:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      collectd.error('Exception during buddyinfo init: %s\n%s' %
+                     (str(e), traceback.format_tb(exc_traceback)))
 
 def collect_buddyinfo():
-    if os.path.exists(BUDDY_FNAME):
-        with open(BUDDY_FNAME) as f:
+   try:
+      if os.path.exists(BUDDY_FNAME):
+         with open(BUDDY_FNAME) as f:
             for line in f:
                match = re_buddyinfo.search(line)
                if not match:
                   continue;
-               node = match.group('node')
-               zone = match.group('zone')
-               free_pages = match.group('pages').strip().split()
+               if 'node' in match.groupdict():
+                  node = match.group('node')
+               else:
+                  collectd.error('node not found in buddyinfo')
+                  return
+               if 'zone' in match.groupdict():
+                  zone = match.group('zone')
+               else:
+                  collectd.error('zone not found in buddyinfo')
+                  return
+               if 'pages' in match.groupdict():
+                  free_pages = match.group('pages').strip().split()
+               else:
+                  collectd.error('pages not found in buddyinfo')
+                  return
                stats_current[(node, zone, 'val')] = free_pages
                stats_current[(node, zone, 'ts')] = time.time()
                key_val = dict(zip(white_list, free_pages))
@@ -154,9 +186,13 @@ def collect_buddyinfo():
                   metric.values = [free_pages[k]]
                   metric.dispatch()
             f.close()
-    else:
-        collectd.error('buddyinfo: procfs path: %s does not exist'
+      else:
+         collectd.error('buddyinfo: procfs path: %s does not exist'
                        % (BUDDY_FNAME))
+   except Exception as e:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      collectd.error('Exception during buddyinfo collection: %s\n%s' %
+                     (str(e), traceback.format_tb(exc_traceback)))
 
 def swap_current_cache():
    stats_cache = stats_current.copy()
