@@ -91,7 +91,6 @@ Documentation/iostat.txt (ignores first 3 fileds):
 
 """
 
-
 import collectd
 import platform
 import socket
@@ -101,22 +100,6 @@ import re
 ### Globals ###
 OS_NAME = platform.system()
 HOST_NAME = socket.gethostbyaddr(socket.gethostname())[0]
-
-DISKSTATS_FNAME = '/proc/diskstats'
-
-METRIC_PLUGIN = 'diskstats'
-METRIC_TYPE = 'gauge'
-
-"""
-We want to limit the length of device list by ignoring
-sub-partitions when number of devices are beyond certian
-limit. We can also limit the number of devices by ignoring
-devices beyond certian limit, which is handy for supporting
-DB nodes with large number of logical units.
-
-"""
-DISKSTATS_DEV_TOO_MANY = 4
-DISKSTATS_DEV_LIMIT    = 20
 
 diskstat_fields = ['major', 'minor', 'device',
                    'reads_completed', 'reads_merged',
@@ -130,7 +113,16 @@ diskstat_metrics = ['iops_read', 'iops_write', 'iops_rw',
                     'bytes_per_read', 'bytes_per_write', 'bytes_per_rw',
                     'await_read', 'await_write', 'await_rw',
                     'util_pct', 'avgqu_sz', 'svc_tm']
+config = {}
 dev_list = []
+device_filter_regexes = []
+filtered_metrics = []
+
+DISKSTATS_FNAME = '/proc/diskstats'
+METRIC_PLUGIN = 'diskstats_telemetry'
+METRIC_TYPE = 'gauge'
+DISK_FILTER = 'DiskFilter'
+METRIC_FILTER = 'Filter'
 
 # previous and current stats for derivative metrics
 dev_stats_cache = {}
@@ -141,6 +133,25 @@ dev_blk_sz = 512
 one_K = 1024
 
 def get_dev_list():
+   if device_filter_regexes is not None and len(device_filter_regexes) > 0:
+      get_filtered_dev_list()
+   else:
+      get_default_dev_list()
+
+
+def get_filtered_dev_list():
+   with open(DISKSTATS_FNAME) as f:
+      for line in f:
+         fields = line.split()
+         fields = [fl.strip() for fl in fields]
+         devname = fields[2]
+         for regex in device_filter_regexes:
+            if re.match(regex, devname):
+               dev_list.append(devname)
+               continue
+
+
+def get_default_dev_list():
    """
    This function determines a device list for this plugin monitoring.
 
@@ -148,19 +159,12 @@ def get_dev_list():
    that need to be skipped. These inclue loop, ram, and possibly
    other devices and partitions.
 
-   In addition, we can decide whether to collect device partition
-   stats based on number of overall devices constand: DISKSTATS_DEV_TOO_MANY.
-   Also, it is possible to limit the overall number of devices and
-   partitions that need to be tracked using: DISKSTATS_DEV_LIMIT.
-
    Args:
         None
 
    Returns:
         Updated global dev_list
    """
-   temp_dev_list = []
-   temp_dev_parts_list = []
    with open(DISKSTATS_FNAME) as f:
       for line in f:
          fields = line.split()
@@ -169,32 +173,17 @@ def get_dev_list():
          is_ram = re.match('^ram', fields[2])
          is_sr = re.match('^sr', fields[2])
          is_disk_part = re.findall('(^[hs]d[a-z]+)([\d]+)', fields[2])
-         if (is_loop) or (is_ram) or (is_sr):
-            continue
-         if (is_disk_part):
-            temp_dev_parts_list.append(fields[2])
-            continue
+         is_raid_md = re.findall('^md[0-9]+', fields[2])
+         is_raid_dm = re.findall('^dm-[0-9]+', fields[2])
+         if (is_loop) or (is_ram) or (is_sr) or is_disk_part or is_raid_md or is_raid_dm:
+             continue
          else:
-            temp_dev_list.append(fields[2])
-            temp_dev_parts_list.append(fields[2])
+             dev_list.append(fields[2])
+
       f.close()
 
-   collectd.info('diskstats get_dev_list: temp_dev_parts_list: --- %s\n'
-                 % (temp_dev_parts_list))
-
-   # trim the final device list
-   for dev in temp_dev_parts_list:
-      is_disk_part = re.findall('(^[hs]d[a-z]+)([\d]+)', dev)
-
-      # include partitions if overall devices not too many
-      if (is_disk_part and len(temp_dev_list) >= DISKSTATS_DEV_TOO_MANY):
-         continue
-
-      # if number of devices and partitions above limit, skip the rest
-      if (len(dev_list) >= DISKSTATS_DEV_LIMIT):
-         break
-
-      dev_list.append(dev)
+   collectd.info('diskstats get_default_dev_list: dev_list: --- %s\n'
+                 % (dev_list))
 
 def init_dev_stats_cache():
    global dev_stats_cache
@@ -235,13 +224,6 @@ def calc_del_t(dev):
 def calc_metrics(dev):
    # time_delta is in seconds
    time_delta = calc_del_t(dev)
-
-   # multiple read or write requests that are merged to
-   # become single read/write request to device
-   cur_rrq = int(dev_stats_current[(dev, 'reads_merged')])
-   pre_rrq = int(dev_stats_cache[(dev, 'reads_merged')])
-   cur_wrq = int(dev_stats_current[(dev, 'writes_merged')])
-   pre_wrq = int(dev_stats_cache[(dev, 'writes_merged')])
 
    # read and write operation that actually complete
    cur_r = int(dev_stats_current[(dev, 'reads_completed')])
@@ -359,13 +341,40 @@ def dispatch_metrics(dev_name, keys, vals):
 
    for i in range(len(keys)):
       if vals[i] is not None:
-         metric.type_instance = keys[i]
-         metric.values = [vals[i]]
-         metric.dispatch()
+         if ((filtered_metrics is None) or
+             (filtered_metrics is not None and keys[i] in filtered_metrics)):
+             metric.type_instance = keys[i]
+             metric.values = [vals[i]]
+             metric.dispatch()
 
 #=== Callback functions registered with collectd ===#
-def configer(ObjConfiguration):
+def configer(c):
+   global config, device_filter_regexes, filtered_metrics
    collectd.info('diskstat plugin: configuring host: %s' % (HOST_NAME))
+
+   # Load all configs 
+   for child in c.children: 
+      config[child.key] = child.values 
+ 
+   if DISK_FILTER not in config: 
+      device_filter_regexes = None 
+      collectd.info("Since device filter is not defined, metrics for default devices will be published")
+   else:
+      device_filter_regexes = list(config[DISK_FILTER])
+      if len(device_filter_regexes) == 1 and device_filter_regexes[0] == '':
+          device_filter_regexes = None
+          collectd.info("Device filter is empty string, metrics for default devices will be published")
+   collectd.info('Filtered devices are: %s' % (device_filter_regexes))
+
+   if METRIC_FILTER not in config: 
+      filtered_metrics = None 
+      collectd.info("Since metric filter is not defined, all metrics will be published")
+   else:
+      filtered_metrics = list(config[METRIC_FILTER])
+      if len(filtered_metrics) == 1 and filtered_metrics[0] == '':
+          filtered_metrics = None
+          collectd.info("Metric filter is empty string, all metrics will be published")
+   collectd.info('Filtered metrics are: %s' % (filtered_metrics))
 
 def initer():
    get_dev_list()
