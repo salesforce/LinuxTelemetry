@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 ##########################################################################
-# Copyright (c) 2015, Salesforce.com, Inc.
+# Copyright (c) 2019, Salesforce.com, Inc.
 # All rights reserved.
 #
 # Redistributions of source code must retain the above copyright
@@ -31,46 +31,33 @@
 ##########################################################################
 
 ############################################################
-# Mockup for collectd for testing plugins as well as for
-# generating docs
+# Ftest for vmstat plugin with some ideas to extend it for
+# 3.x kernel, which has slightly different pgsteal_* fields.
 ############################################################
 
+import platform
+import sys
+import os
 import socket
+import time
+import re
 
-class Values:
-    def __init__(self):
-        self.host = socket.gethostbyaddr(socket.gethostname())[0]
-        self.plugin = 'test-plugin'
-        self.type = 'test-type'
-        self.type_instance = 'test-type-instance'
-        self.values = []
+sys.path.append(os.path.join(os.path.dirname(__file__), "../src"))
+from sfdc.collectd import vmstats
+import collectd
 
-    def dispatch(self):
-        print('dispatch: type_instance: %s value: %s' % (self.type_instance, self.values))
+def main():
+    os_name = platform.system()
+    if (os_name == 'Linux'):
+      vmstats.initer()
+      vmstats.reader()
+      print('read once')
+      time.sleep(10)
+      vmstats.reader()
+      print('read twice')
+    else:
+      print('vmstats plugin currently works for Linux only')
+      print('Finished')
 
-def info(params):
-    print('INFO: ' + params)
-
-def warn(params):
-    print('WARN: ' + params)
-
-def error(params):
-    print('ERROR: ' + params)
-
-def debug(params):
-    print('DEBUG: ' + params)
-
-def register_config(params):
-    pass
-
-def register_init(params):
-    pass
-
-def register_read(params):
-    pass
-
-def register_write(params):
-    pass
-
-def register_shutdown(params):
-    pass
+if __name__ == "__main__":
+   main()

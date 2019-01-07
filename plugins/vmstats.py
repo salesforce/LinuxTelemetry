@@ -245,10 +245,20 @@ vmstat_fields = ['nr_free_pages',
                  'pgsteal_dma32',
                  'pgsteal_normal',
                  'pgsteal_movable',
+                 'pgsteal_kswapd',
+                 'pgsteal_kswapd_dma',
+                 'pgsteal_kswapd_dma32',
+                 'pgsteal_kswapd_normal',
+                 'pgsteal_direct',
+                 'pgsteal_direct_dma',
+                 'pgsteal_direct_dma32',
+                 'pgsteal_direct_normal',
+                 'pgscan_kswapd',
                  'pgscan_kswapd_dma',
                  'pgscan_kswapd_dma32',
                  'pgscan_kswapd_normal',
                  'pgscan_kswapd_movable',
+                 'pgscan_direct',
                  'pgscan_direct_dma',
                  'pgscan_direct_dma32',
                  'pgscan_direct_normal',
@@ -297,7 +307,6 @@ vmstat_metrics = ['pgpgin_per_sec',
                   'pgscand_per_sec',
                   'pgsteal_per_sec',
                   'pct_vmeff']
-
 white_list = ['pgpgin',
               'pgpgout',
               'pswpin',
@@ -317,6 +326,9 @@ white_list = ['pgpgin',
               'pgsteal_dma',
               'pgsteal_dma32',
               'pgsteal_normal',
+              'pgsteal_kswapd_dma',
+              'pgsteal_kswapd_dma32',
+              'pgsteal_kswapd_normal',
               'zone_reclaim_failed',
               'slabs_scanned',
               'kswapd_steal',
@@ -354,6 +366,33 @@ white_list = ['pgpgin',
               'numa_interleave',
               'numa_local',
               'numa_other']
+
+"""
+pgsteal_*, pgscan_kswapd*, and pgscan_drect* keys vary
+among kernel versions and requires special handling to
+accommodate differences. For instance, CentOS 6:
+pgsteal_dma,
+pgsteal_dma32
+pgsteal_normal
+pgsteal_movable
+
+while these variables in CentOS 7 are named as:
+pgsteal_kswapd_dma,
+pgsteal_kswapd_dma32
+pgsteal_kswapd_normal
+pgsteal_kswapd_movable
+pgsteal_direct_dma,
+pgsteal_direct_dma32
+pgsteal_direct_normal
+pgsteal_direct_movable
+
+We postpone the discovery of actual key names until
+plugin is loaded and configured
+"""
+pgsteal_white_list = []
+pgscank_white_list = []
+pgscand_white_list = []
+
 stats_cache = {}
 stats_current = {}
 
@@ -364,7 +403,13 @@ def get_host_type():
 
 def init_stats_cache():
    global white_list
+   global pgsteal_white_list
+   global pgscank_white_list
+   global pgscand_white_list
    tmp_white_list = []
+   tmp_pgsteal_white_list = []
+   tmp_pgscank_white_list = []
+   tmp_pgscand_white_list = []
 
    if os.path.exists(VMS_FNAME):
       with open(VMS_FNAME) as f:
@@ -374,11 +419,25 @@ def init_stats_cache():
             key_name = fields[0]
             key_val = int(fields[1])
             if any(s in key_name for s in white_list):
-               stats_cache[(key_name, 'val')] = key_val
-               stats_cache[(key_name, 'ts')] = time.time()
-               tmp_white_list.append(key_name)
+                tmp_white_list.append(key_name)
+            if (key_name.startswith('pgsteal') and key_name in vmstat_fields):
+                tmp_pgsteal_white_list.append(key_name)
+            elif (key_name.startswith('pgscan_kswapd') and key_name in vmstat_fields):
+                tmp_pgscank_white_list.append(key_name)
+            elif (key_name.startswith('pgscan_direct') and key_name in vmstat_fields):
+                tmp_pgscand_white_list.append(key_name)
+            if (key_name in tmp_white_list+tmp_pgsteal_white_list+tmp_pgscank_white_list+tmp_pgscand_white_list):
+                stats_cache[(key_name, 'val')] = key_val
+                stats_cache[(key_name, 'ts')] = time.time()
+
       f.close()
-      white_list = tmp_white_list
+      white_list = list(set().union(tmp_white_list,
+                                    tmp_pgsteal_white_list,
+                                    tmp_pgscank_white_list,
+                                    tmp_pgscand_white_list))
+      pgsteal_white_list = tmp_pgsteal_white_list
+      pgscank_white_list = tmp_pgscank_white_list
+      pgscand_white_list = tmp_pgscand_white_list
    else:
       collectd.info('vmstats: init_stats_cache: path: %s does not exist'
                     % (VMS_FNAME))
@@ -435,17 +494,20 @@ def calc_vmstats():
     mjflts_ps = vm_rate['pgmajfault']
     pgfree_ps = vm_rate['nr_free_pages']
 
-    pgscank_ps = vm_rate['pgscan_kswapd_dma']
-    pgscank_ps += vm_rate['pgscan_kswapd_dma32']
-    pgscank_ps += vm_rate['pgscan_kswapd_normal']
+    pgscank_ps = 0.0
+    if pgscank_white_list:
+        for s in pgscank_white_list:
+            pgscank_ps += vm_rate[s] if vm_rate[s] is not None else 0.0
 
-    pgscand_ps = vm_rate['pgscan_direct_dma']
-    pgscand_ps += vm_rate['pgscan_direct_dma32']
-    pgscand_ps += vm_rate['pgscan_direct_normal']
+    pgscand_ps = 0.0
+    if pgscand_white_list:
+        for s in pgscand_white_list:
+            pgscand_ps += vm_rate[s] if vm_rate[s] is not None else 0.0
 
-    pgsteal_ps = vm_rate['pgsteal_dma']
-    pgsteal_ps += vm_rate['pgsteal_dma32']
-    pgsteal_ps += vm_rate['pgsteal_normal']
+    pgsteal_ps = 0.0
+    if pgsteal_white_list:
+        for s in pgsteal_white_list:
+            pgsteal_ps += vm_rate[s] if vm_rate[s] is not None else 0.0
 
     pgscan_ps = pgscank_ps + pgscand_ps
     vmeff = pgsteal_ps/pgscan_ps if (pgscan_ps > 0.0) else 0.0
@@ -482,6 +544,10 @@ def initer():
    collectd.info('vmstats initer: white list: %s ' % (white_list))
    init_stats_cache()
    collectd.info('vmstats init: stats_cache: %s ' % (stats_cache))
+   collectd.info('vmstats init: updated white_list: %s' % (white_list))
+   collectd.info('vmstats init: updated pgsteal_white_list: %s' % (pgsteal_white_list))
+   collectd.info('vmstats init: updated pgscank_white_list: %s' % (pgscank_white_list))
+   collectd.info('vmstats init: updated pgscand_white_list: %s' % (pgscand_white_list))
 
 def reader(input_data=None):
    collect_vmstats()
