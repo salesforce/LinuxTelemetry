@@ -52,12 +52,13 @@ PROCFS_DISKSTAT_2 = os.path.abspath(os.path.join(os.path.dirname(__file__),
                                                  'mocks/proc_diskstats_2'))
 
 # Expected values for verifications
-DEV_LIST = ['sdb', 'sde', 'sdd', 'sdf', 'sdc', 'sda', 'md0', 'md1', 'md2', 'md3', 'fioa']
-DEV_LIST_2 = ['sdb', 'sda', 'sda1', 'sda2', 'sda3', 'sda4']
+DEV_LIST = ['sdb', 'sde', 'sdd', 'sdf', 'sdc', 'sda', 'fioa']
+DEV_LIST_2 = ['ram0', 'ram1', 'ram2', 'ram3', 'ram4', 'ram5', 'ram6', 'ram7', 'ram8', 'ram9', 'ram10', 'ram11', 'ram12', 'ram13', 'ram14', 'ram15', 'loop0', 'loop1', 'loop2', 'loop3', 'loop4', 'loop5', 'loop6', 'loop7', 'sdb', 'sda', 'sda1', 'sda2', 'sda3', 'sda4', 'sr0']
 
 class TestDiskstats(unittest.TestCase):
   def setUp(self):
     diskstats.DISKSTATS_FNAME = PROCFS_DISKSTAT
+    diskstats.device_filter_regexes=['^sd[a-z]+$','^fioa$']
 
   def test_1_diskstats_get_dev_list_sku1(self):
     diskstats.get_dev_list()
@@ -74,11 +75,20 @@ class TestDiskstats(unittest.TestCase):
   def test_1_diskstats_get_dev_list_sku2(self):
     diskstats.dev_list = []
     diskstats.DISKSTATS_FNAME = PROCFS_DISKSTAT_2
+    diskstats.device_filter_regexes = ['']
     diskstats.get_dev_list()
 
     self.assertTrue(len(diskstats.dev_list) > 0, 'at least one metric')
     self.assertEqual(diskstats.dev_list, DEV_LIST_2,
                      'device lists parsing error')
+    try:
+        self.assertTrue(len(diskstats.dev_list) > 0, 'at least one metric')
+        self.assertEqual(diskstats.dev_list, DEV_LIST_2, 'device lists parsing error')
+    except:
+        print('dev_list: %s' % (diskstats.dev_list))
+        print('expected DEV_LIST: %s' % (DEV_LIST_2))
+        print('Exception: %s' % (sys.exc_info()[0]))
+        raise
 
     # restore the default SKU
     diskstats.DISKSTATS_FNAME = PROCFS_DISKSTAT
