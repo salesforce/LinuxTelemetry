@@ -8,12 +8,12 @@ levels. These python based plugins extend base collectd to monitor network, disk
 
 Following plugins are being provided:
 
-1. [Diskstats](plugins/diskstats.py)
-2. [Fusion-io](plugins/fusionio.py)
-3. [Vmstats](plugins/vmstats.py)
-4. [Buddyinfo](plugins/buddyinfo.py)
-5. [Zoneinfo](plugins/zoneinfo.py)
-6. [Netstats](plugins/netstats.py)
+- [Diskstats](plugins/diskstats.py)
+- [Fusion-io](plugins/fusionio.py)
+- [Vmstats](plugins/vmstats.py)
+- [Buddyinfo](plugins/buddyinfo.py)
+- [Zoneinfo](plugins/zoneinfo.py)
+- [Netstats](plugins/netstats.py)
 
 Except for fusion-io plugin, all others gather system level metrics through procfs from corresponding locations: /proc/diskstats, /proc/vmstats, /proc/buddyinfo, /proc/zoneinfo, /proc/net/snmp, and /proc/net/netstat.
 
@@ -23,7 +23,7 @@ Installation
 Installation process is tested on Red Hat Enterprise Linux Server
 release 6.5. It will need to be adapted for other variants of Linux.
 
-###Step 1. Base collectd installation with python:
+### Step 1. Base collectd installation with python:
 
 Base [collectd](https://collectd.org/download.shtml) is available as RPM packages. If yum repo is configured for collectd installation:
 
@@ -50,7 +50,7 @@ Edit collectd configuration in /etc/collectd.conf to allow it to use external pl
 </Include>
 ```
 
-###Step 2. Installation of telemetry plugins:
+### Step 2. Installation of telemetry plugins:
 
 Install plugins using:
 
@@ -69,7 +69,7 @@ following files/directories:
 4. /usr/share/collectd/plugins/python (for python plugins)
 
 
-###Step 3. Start/restart collectd:
+### Step 3. Start/restart collectd:
 
 `service collectd start` (or `collectd -C /etc/collectd.conf`)
 
@@ -117,22 +117,26 @@ Installing Graphite is often a time-consuming process due to complex dependencie
 
 Plugins
 -------
-###Diskstats
+
+### Diskstats
+
 This plug-in reads /proc/diskstats and collects stats for devices, such as disks, RAID, flash, etc. In addition to collecting raw stats, plugin can derive metrics such as, iops, device utilization, bytes read/write volumes, queue sizes, service times, and so on at next collection interval. These metrics are typically obtained through 'iostat', 'sar', or 'atop'.
 
-###Fusion-IO
+### Fusion-IO
+
 This  plugin is specifically developed for fusion-io flash device measurement. It currently measures:
 
-1. physical blocks read
-2. physical blocks written
-3. total blocks
-4. min block erases count
-5. max block erases count
-6. average block erases count
+- physical blocks read
+- physical blocks written
+- total blocks
+- min block erases count
+- max block erases count
+- average block erases count
 
 These metrics are extracted from fusion-io command-line utilities: 'fio-status' and 'fio-get-erase-count'.
 
-###Vmstats
+### Vmstats
+
 This plugin is based on /proc/vmstat raw metrics. In addition to raw metrics, a few metric are derived, which are available through tools such as 'vmstat', 'sar' and 'atop':
 
 - pgpgin/s
@@ -145,11 +149,14 @@ This plugin is based on /proc/vmstat raw metrics. In addition to raw metrics, a 
 - pgsteal/s
 - %vmeff
 
-###Buddyinfo
+### Buddyinfo
+
 Linux uses buddy allocator for memory management. This plugin is based on the number of free pages counters from /proc/buddyinfo. These free pages statistics are available in terms of NUMA node, allocation zones (such as Normal, DMA, etc.), and order of page sizes: 4K, 8K, 16K, 32K, 64K, 128K, 256K, 512K, 1024K, and 2048K. These statistics are useful for getting a handle on memory pressure, fragmentation, and virtual memory system in-efficiences, and JVM/GC pauses. Such statistics are typically obtained from tools such as 'collectl'.
 
-###Zoneinfo
+### Zoneinfo
+
 This plugin extracts metrics freom /proc/zoneinfo, which essentially breaks down virtual memory stats with respect to each NUMA node and memory zone. It supplements the measurements provided by vmstta and buddyinfo plugins with respect to zones.
 
-###Netstats
+### Netstats
+
 Linux maintains network protocol specific counters under /proc/net/snmp and /proc/net/netstat. Protocols include IP, ICMP, TCP, UDP, and their extensions. This plugin exposes those counters, which are typically available through 'netstat -s' command for net-tools implementation of netstat.
